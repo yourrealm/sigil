@@ -35,6 +35,7 @@
     "tailwindcss": "npm:tailwindcss@^4.1.10",
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",
     "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.15",
+    "@tanstack/preact-query": "npm:@tanstack/preact-query@^5.66.0",
     "clsx": "npm:clsx@^2.1.1",
     "tailwind-merge": "npm:tailwind-merge@^3.5.0",
     "zod": "npm:zod@^4.3.6"

@@ -7,6 +7,7 @@ export type CardState =
   | "loggedIn"
   | "resignNeeded"
   | "submitting"
+  | "pending"
   | "signed"
   | "revoke"
   | "revoking";
@@ -37,6 +38,11 @@ export const CARD_STATES: Record<CardState, CardStateStyle> = {
     switchOn: "bg-warn",
   },
   submitting: {
+    head: "bg-yellow text-ink",
+    primaryButton: "bg-ink text-paper hover:bg-ink2",
+    switchOn: "bg-yellow",
+  },
+  pending: {
     head: "bg-yellow text-ink",
     primaryButton: "bg-ink text-paper hover:bg-ink2",
     switchOn: "bg-yellow",

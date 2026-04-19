@@ -45,6 +45,7 @@
     "npm:@prefresh/vite@^2.4.8": "2.4.12_preact@10.29.1_vite@7.3.2",
     "npm:@tailwindcss/typography@~0.5.15": "0.5.19_tailwindcss@4.2.2",
     "npm:@tailwindcss/vite@^4.1.12": "4.2.2_vite@7.3.2",
+    "npm:@tanstack/preact-query@^5.66.0": "5.99.2_preact@10.29.1",
     "npm:clsx@^2.1.1": "2.1.1",
     "npm:esbuild-wasm@~0.25.11": "0.25.12",
     "npm:esbuild@0.25.7": "0.25.7",
@@ -1113,6 +1114,16 @@
         "vite"
       ]
     },
+    "@tanstack/preact-query@5.99.2_preact@10.29.1": {
+      "integrity": "sha512-2q8hlrJRXT6nAXogg2vJd/u7SuVBa/VIExrR/fEK7zsoBrQCUTzGkP5l/jc/cj3WaEn6Y7gtqYkasOrVySOd0Q==",
+      "dependencies": [
+        "@tanstack/query-core",
+        "preact@10.29.1"
+      ]
+    },
+    "@tanstack/query-core@5.99.2": {
+      "integrity": "sha512-1HunU0bXVsR1ZJMZbcOPE6VtaBJxsW809RE9xPe4Gz7MlB0GWwQvuTPhMoEmQ/hIzFKJ/DWAuttIe7BOaWx0tA=="
+    },
     "@types/estree@1.0.8": {
       "integrity": "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w=="
     },
@@ -1648,6 +1659,7 @@
       "npm:@preact/signals@^2.5.0",
       "npm:@tailwindcss/typography@~0.5.15",
       "npm:@tailwindcss/vite@^4.1.12",
+      "npm:@tanstack/preact-query@^5.66.0",
       "npm:clsx@^2.1.1",
       "npm:preact@^10.27.2",
       "npm:tailwind-merge@^3.5.0",

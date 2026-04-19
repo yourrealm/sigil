@@ -105,9 +105,12 @@ function SignedInView(
 ) {
   const { cla, forge, owner, repo, auth } = data;
   const bodyHtml = render(cla.body);
+  const repoUrl = FORGE_WEB[forge]
+    ? `${FORGE_WEB[forge]}/${owner}/${repo}`
+    : null;
   return (
     <CLAProvider value={{ cla, owner, repo }}>
-      <PageShell target={{ forge, owner, repo }}>
+      <PageShell target={{ forge, owner, repo }} hideRepoLabel>
         <main class="max-w-[1200px] mx-auto px-6 pb-24 grid grid-cols-12 gap-10">
           <article class="col-span-12 lg:col-span-7">
             <div class="mb-10">
@@ -119,8 +122,38 @@ function SignedInView(
                   </>
                 }
               />
-              <div class="mt-6 flex items-center gap-3 text-xs text-ink font-mono">
+              <div class="mt-6 flex items-center gap-4 text-xs text-ink font-mono leading-none">
                 <span>v{cla.version}</span>
+                <span class="w-1 h-1 bg-ink shrink-0"></span>
+                <Eyebrow class="text-muted">{forge}:</Eyebrow>
+                {repoUrl
+                  ? (
+                    <a
+                      href={repoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex items-center gap-1.5 text-ink hover:underline underline-offset-2"
+                    >
+                      <PiGithubLogoDuotone class="text-sm" />
+                      <span>{owner}/{repo}</span>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width={2.5}
+                      >
+                        <path d="M7 17L17 7M17 7H8M17 7v9" />
+                      </svg>
+                    </a>
+                  )
+                  : (
+                    <span class="flex items-center gap-1.5">
+                      <PiGithubLogoDuotone class="text-sm" />
+                      <span>{owner}/{repo}</span>
+                    </span>
+                  )}
               </div>
             </div>
 
@@ -136,7 +169,7 @@ function SignedInView(
             <div class="flex items-center justify-between">
               <Eyebrow class="text-muted">End of agreement</Eyebrow>
               <Eyebrow class="text-muted">
-                {cla.name}&nbsp;v{cla.version}
+                {cla.name}&nbsp;CLA&nbsp;v{cla.version}
               </Eyebrow>
             </div>
           </article>
@@ -146,7 +179,7 @@ function SignedInView(
               <GithubSignBox
                 auth={auth}
                 cla={cla}
-                target={{ owner, repo }}
+                target={{ forge, owner, repo }}
               />
               <HowItWorks owner={owner} repo={repo} userLogin={auth?.login} />
             </div>
@@ -255,10 +288,14 @@ interface PageShellProps {
   target: RepoTarget;
   /** Compact = error pages: hide the right-side forge label in the header. */
   compact?: boolean;
+  /** Hide the header forge label when the page renders it elsewhere (e.g. next to the version). */
+  hideRepoLabel?: boolean;
   children?: ComponentChildren;
 }
 
-function PageShell({ target, compact, children }: PageShellProps) {
+function PageShell(
+  { target, compact, hideRepoLabel, children }: PageShellProps,
+) {
   const { forge, owner, repo } = target;
   const repoUrl = FORGE_WEB[forge]
     ? `${FORGE_WEB[forge]}/${owner}/${repo}`
@@ -269,7 +306,7 @@ function PageShell({ target, compact, children }: PageShellProps) {
       <header class="max-w-[1200px] mx-auto px-6 pt-16 pb-8 flex items-end justify-between">
         <div class="flex items-center gap-3">
           <Wordmark href="/" tagline="Signatures for open source" />
-          {!compact && (
+          {!compact && !hideRepoLabel && (
             <span class="hidden md:inline text-xs ml-4">
               <Eyebrow class="text-muted">{forge}:</Eyebrow> {repoUrl
                 ? (
@@ -302,7 +339,7 @@ function PageShell({ target, compact, children }: PageShellProps) {
 
       <footer class="border-t-2 border-ink">
         <div class="max-w-[1200px] mx-auto px-6 py-6 flex items-center justify-between text-xs text-muted">
-          <span>Made with Sigil</span>
+          <span>Made in the EU</span>
           {repoUrl && (
             <a
               href={repoUrl}

@@ -1,7 +1,18 @@
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/preact-query";
 import { GithubAuthProvider, useGithubAuth } from "@/lib/auth.tsx";
 import { CLAProvider, type ParsedCLA, useCLA } from "@/lib/cla.tsx";
+import {
+  type ForgeTarget,
+  openPrQuery,
+  signatureQuery,
+} from "@/lib/queries.ts";
+import type { OpenSignaturePr } from "@/lib/api.ts";
 import type { Auth } from "@/lib/sessions.ts";
 import { Button } from "@/components/button.tsx";
 import { Eyebrow } from "@/components/eyebrow.tsx";
@@ -18,8 +29,15 @@ import {
   PiGithubLogoDuotone,
   PiGitPullRequestDuotone,
   PiSealCheckDuotone,
+  PiSpinnerGapDuotone,
   PiWarningOctagonDuotone,
 } from "@preact-icons/pi";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { refetchOnWindowFocus: false, retry: 1 },
+  },
+});
 
 const META: Record<
   CardState,
@@ -54,6 +72,14 @@ const META: Record<
     title: (
       <>
         Opening pull <em>request</em>…
+      </>
+    ),
+  },
+  pending: {
+    eyebrow: "Pending merge",
+    title: (
+      <>
+        Awaiting <em>review</em>
       </>
     ),
   },
@@ -119,28 +145,63 @@ function useUser(): DisplayUser {
 interface GithubSignBoxProps {
   auth: Auth | null;
   cla: ParsedCLA;
-  target: { owner: string; repo: string };
+  target: ForgeTarget;
 }
 
-export default function GithubSignBox(
+export default function GithubSignBox(props: GithubSignBoxProps) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SignBoxInner {...props} />
+    </QueryClientProvider>
+  );
+}
+
+function useDerivedState(
+  auth: Auth | null,
+  cla: ParsedCLA,
+  target: ForgeTarget,
+): { state: CardState; openPr: OpenSignaturePr | null } {
+  const handle = auth?.login ?? "";
+  const sigQ = useQuery({
+    ...signatureQuery(target, handle),
+    enabled: !!auth,
+  });
+  const prQ = useQuery({
+    ...openPrQuery(target, handle),
+    enabled: !!auth,
+  });
+
+  const openPr = prQ.data ?? null;
+  if (!auth) return { state: "loggedOut", openPr: null };
+  if (sigQ.data) {
+    const matches = sigQ.data.agreementVersion === cla.version;
+    return { state: matches ? "signed" : "resignNeeded", openPr };
+  }
+  if (openPr) return { state: "pending", openPr };
+  return { state: "loggedIn", openPr };
+}
+
+function SignBoxInner(
   { auth, cla, target }: GithubSignBoxProps,
 ) {
-  const state = useSignal<CardState>(auth ? "loggedIn" : "loggedOut");
+  const derived = useDerivedState(auth, cla, target);
+  const override = useSignal<CardState | null>(null);
+  const currentState = override.value ?? derived.state;
   const changesRef = useRef<HTMLDialogElement>(null!);
   const compareRef = useRef<HTMLDialogElement>(null!);
 
-  const setState = (next: CardState) => (state.value = next);
-  const meta = META[state.value];
+  const setState = (next: CardState) => (override.value = next);
+  const meta = META[currentState];
   const openChanges = () => changesRef.current?.showModal();
   const openCompare = () => compareRef.current?.showModal();
-  const headEm = state.value === "submitting"
+  const headEm = currentState === "submitting"
     ? "[&_em]:not-italic [&_em]:bg-ink [&_em]:text-yellow [&_em]:px-1"
     : "[&_em]:not-italic";
 
   return (
     <GithubAuthProvider value={auth}>
       <CLAProvider value={{ cla, owner: target.owner, repo: target.repo }}>
-        <Card id="signCard" state={state.value}>
+        <Card id="signCard" state={currentState}>
           <CardHead>
             <div>
               <Eyebrow class="mb-2 block opacity-80">{meta.eyebrow}</Eyebrow>
@@ -159,10 +220,11 @@ export default function GithubSignBox(
           </CardHead>
           <CardBody>
             <StateBody
-              state={state.value}
+              state={currentState}
               setState={setState}
               openChanges={openChanges}
               openCompare={openCompare}
+              openPr={derived.openPr}
             />
           </CardBody>
         </Card>
@@ -184,7 +246,11 @@ interface CardActions {
   openCompare: () => void;
 }
 
-function StateBody({ state, ...actions }: CardActions & { state: CardState }) {
+function StateBody(
+  { state, openPr, ...actions }:
+    & CardActions
+    & { state: CardState; openPr: OpenSignaturePr | null },
+) {
   switch (state) {
     case "loggedOut":
       return <LoggedOut />;
@@ -204,6 +270,8 @@ function StateBody({ state, ...actions }: CardActions & { state: CardState }) {
       );
     case "submitting":
       return <Submitting />;
+    case "pending":
+      return <Pending pr={openPr} />;
     case "signed":
       return <Signed setState={actions.setState} />;
     case "revoke":
@@ -214,20 +282,25 @@ function StateBody({ state, ...actions }: CardActions & { state: CardState }) {
 }
 
 function LoggedOut() {
+  const loading = useSignal(false);
   return (
     <div class="animate-fade-up">
       <UpstreamLine verb="Signing" tail="that adds your signature." />
       <Button
         class="w-full py-3.5 text-sm"
-        icon={<PiGithubLogoDuotone class="text-xl" />}
+        disabled={loading.value}
+        icon={loading.value
+          ? <PiSpinnerGapDuotone class="text-xl animate-spin" />
+          : <PiGithubLogoDuotone class="text-xl" />}
         onClick={() => {
+          loading.value = true;
           const ret = encodeURIComponent(
             globalThis.location.pathname + globalThis.location.search,
           );
           globalThis.location.href = `/auth/github/login?return=${ret}`;
         }}
       >
-        Sign in with GitHub
+        {loading.value ? "Redirecting to GitHub…" : "Sign in with GitHub"}
       </Button>
     </div>
   );
@@ -526,6 +599,88 @@ function Submitting() {
           ? "Pull request opened. A maintainer will review and merge."
           : "Orchestrating the fork + commit + PR."}
       </p>
+    </div>
+  );
+}
+
+function describeMergeableState(state: string): string {
+  switch (state) {
+    case "clean":
+      return "Ready to merge — waiting on a maintainer.";
+    case "blocked":
+      return "Blocked by required reviews or branch protection.";
+    case "behind":
+      return "Behind the base branch — update required.";
+    case "dirty":
+      return "Has merge conflicts.";
+    case "unstable":
+      return "CI checks running or failing.";
+    case "draft":
+      return "Draft pull request.";
+    case "unknown":
+    case "":
+      return "GitHub is still computing mergeability.";
+    default:
+      return state;
+  }
+}
+
+function Pending({ pr }: { pr: OpenSignaturePr | null }) {
+  const user = useUser();
+  const { owner, repo } = useCLA();
+  const upstream = `${owner}/${repo}`;
+  if (!pr) {
+    return (
+      <div class="animate-fade-up">
+        <p class="text-sm text-ink2 leading-relaxed">
+          Loading pull request…
+        </p>
+      </div>
+    );
+  }
+  const status = describeMergeableState(pr.mergeableState);
+  return (
+    <div class="animate-fade-up">
+      <div class="mb-5 border-2 border-ink overflow-hidden">
+        <div class="px-4 py-2.5 bg-ink text-paper flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs">
+            <PiGitPullRequestDuotone class="text-base text-yellow" />
+            <span class="font-mono">{upstream}#{pr.number}</span>
+          </div>
+          <a
+            href={pr.htmlUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-paper/70 hover:text-paper transition-colors"
+            aria-label="View on GitHub"
+          >
+            <PiGithubLogoDuotone class="text-xl" />
+          </a>
+        </div>
+        <div class="px-4 py-3 bg-paper">
+          <div class="text-sm text-ink font-medium">
+            Signature PR from <span class="font-mono">{user.handle}</span>
+          </div>
+          <div class="mt-2 text-xs text-muted font-mono">
+            .cla-signatures/{user.login}.md
+          </div>
+        </div>
+      </div>
+
+      <Eyebrow class="mb-2 block">Status</Eyebrow>
+      <p class="text-sm text-ink2 leading-relaxed mb-5">{status}</p>
+
+      <p class="text-xs text-muted leading-relaxed mb-5">
+        A maintainer of <span class="font-mono text-ink">{upstream}</span>{" "}
+        needs to review and merge this pull request. This page will update once
+        they do.
+      </p>
+
+      <Button asChild variant="ghost" class="w-full px-4 py-2.5 text-sm">
+        <a href={pr.htmlUrl} target="_blank" rel="noopener noreferrer">
+          View pull request →
+        </a>
+      </Button>
     </div>
   );
 }
