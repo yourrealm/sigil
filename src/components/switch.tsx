@@ -17,7 +17,7 @@ export function Switch({ checked, label, sublabel }: SwitchProps) {
       role="switch"
       aria-checked={on ? "true" : "false"}
       tabindex={0}
-      class="mb-4 p-4 border-2 border-ink bg-paper flex items-start gap-4 cursor-pointer select-none focus-visible:outline-3 focus-visible:outline-yellow"
+      class="mb-4 p-4 border-2 border-ink bg-paper flex items-center gap-4 cursor-pointer select-none focus-visible:outline-3 focus-visible:outline-yellow"
       onClick={toggle}
       onKeyDown={(e) => {
         if (e.key === " " || e.key === "Enter") {
@@ -28,7 +28,7 @@ export function Switch({ checked, label, sublabel }: SwitchProps) {
     >
       <span
         class={cn(
-          "relative w-16 h-8 flex-none border-2 border-ink shadow-sm transition-colors duration-150 ease-out mt-0.5",
+          "relative w-16 h-8 flex-none border-2 border-ink shadow-sm transition-colors duration-150 ease-out",
           on ? style.switchOn : "bg-paper",
         )}
       >

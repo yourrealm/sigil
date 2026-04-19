@@ -57,6 +57,7 @@
     "npm:marked-footnote@^1.4.0": "1.4.0_marked@17.0.5",
     "npm:marked-gfm-heading-id@^4.1.3": "4.1.4_marked@17.0.5",
     "npm:marked@^17.0.1": "17.0.5",
+    "npm:openapi-fetch@0.14": "0.14.1",
     "npm:preact-render-to-string@^6.6.3": "6.6.7_preact@10.29.1",
     "npm:preact@10.22.1": "10.22.1",
     "npm:preact@^10.22.1": "10.29.1",
@@ -1503,6 +1504,15 @@
     "node-releases@2.0.37": {
       "integrity": "sha512-1h5gKZCF+pO/o3Iqt5Jp7wc9rH3eJJ0+nh/CIoiRwjRxde/hAHyLPXYN4V3CqKAbiZPSeJFSWHmJsbkicta0Eg=="
     },
+    "openapi-fetch@0.14.1": {
+      "integrity": "sha512-l7RarRHxlEZYjMLd/PR0slfMVse2/vvIAGm75/F7J6MlQ8/b9uUQmUF2kCPrQhJqMXSxmYWObVgeYXbFYzZR+A==",
+      "dependencies": [
+        "openapi-typescript-helpers"
+      ]
+    },
+    "openapi-typescript-helpers@0.0.15": {
+      "integrity": "sha512-opyTPaunsklCBpTK8JGef6mfPhLSnyy5a0IN9vKtx3+4aExf+KxEqYwIy3hqkedXIB97u357uLMJsOnm3GVjsw=="
+    },
     "parse-srcset@1.0.2": {
       "integrity": "sha512-/2qh0lav6CmI15FzA3i/2Bzk2zCgQhGMkvhOhKNcBVQ1ldgpbfiNTVslmooUmWJcADi1f1kIeynbDRVzNlfR6Q=="
     },
@@ -1661,6 +1671,7 @@
       "npm:@tailwindcss/vite@^4.1.12",
       "npm:@tanstack/preact-query@^5.66.0",
       "npm:clsx@^2.1.1",
+      "npm:openapi-fetch@0.14",
       "npm:preact@^10.27.2",
       "npm:tailwind-merge@^3.5.0",
       "npm:tailwindcss@^4.1.10",

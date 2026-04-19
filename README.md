@@ -3,12 +3,12 @@
 Git-native Contributor License Agreements for open source.
 
 Maintainers drop a `CLA.md` at their repo root. Contributors sign by opening a
-pull request that commits `.cla-signatures/<handle>.md`. The repo itself is the
+pull request that commits `.signatures/cla/<handle>.md`. The repo itself is the
 source of truth - every signature, revocation, and re-sign is a Git commit,
 fully auditable. No database. No dashboard. No bot.
 
-The hosted app at `sigil.io` is a thin frontend over the GitHub API: OAuth, open
-PR, wait for the maintainer to merge.
+The hosted app at `withsigil.eu` is a thin frontend over the GitHub API: OAuth,
+open PR, wait for the maintainer to merge.
 
 ## Development
 

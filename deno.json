@@ -5,7 +5,8 @@
     "dev": "vite",
     "build": "vite build",
     "start": "deno serve -A _fresh/server.js",
-    "update": "deno run -A -r jsr:@fresh/update ."
+    "update": "deno run -A -r jsr:@fresh/update .",
+    "gen:github": "deno run -A npm:openapi-typescript@^7.5.0 https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json -o src/lib/github-api.d.ts"
   },
   "lint": {
     "rules": {
@@ -16,7 +17,8 @@
     }
   },
   "exclude": [
-    "**/_fresh/*"
+    "**/_fresh/*",
+    "src/lib/github-api.d.ts"
   ],
   "unstable": [
     "kv"
@@ -37,6 +39,7 @@
     "@tailwindcss/typography": "npm:@tailwindcss/typography@^0.5.15",
     "@tanstack/preact-query": "npm:@tanstack/preact-query@^5.66.0",
     "clsx": "npm:clsx@^2.1.1",
+    "openapi-fetch": "npm:openapi-fetch@^0.14.0",
     "tailwind-merge": "npm:tailwind-merge@^3.5.0",
     "zod": "npm:zod@^4.3.6"
   },

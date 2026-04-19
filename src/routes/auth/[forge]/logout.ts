@@ -1,20 +1,35 @@
 import { define } from "@/utils.ts";
-import { getForge } from "@/lib/forge.ts";
 import { clearCookie, parseCookies } from "@/lib/cookies.ts";
 import { deleteSession, sessionCookieName } from "@/lib/sessions.ts";
 
 export const handler = define.handlers({
   async POST(ctx) {
     const forgeName = ctx.params.forge;
-    if (!getForge(forgeName)) {
+    if (forgeName !== "github") {
       return new Response("Unknown forge", { status: 404 });
+    }
+
+    const reqUrl = new URL(ctx.req.url);
+    // CSRF gate: reject cross-origin POSTs. Modern browsers send Origin on
+    // every POST, so a missing Origin is acceptable (browser quirk, or a
+    // same-origin form). A mismatching Origin means a cross-site POST.
+    const origin = ctx.req.headers.get("origin");
+    if (origin) {
+      try {
+        if (new URL(origin).origin !== reqUrl.origin) {
+          return new Response("Forbidden", { status: 403 });
+        }
+      } catch {
+        return new Response("Forbidden", { status: 403 });
+      }
     }
 
     const cookies = parseCookies(ctx.req.headers.get("cookie"));
     const id = cookies[sessionCookieName(forgeName)];
-    if (id) await deleteSession(id);
+    if (id) {
+      await deleteSession(id);
+    }
 
-    const reqUrl = new URL(ctx.req.url);
     const referer = ctx.req.headers.get("referer");
     let location = "/";
     if (referer) {

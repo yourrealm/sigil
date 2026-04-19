@@ -1,5 +1,6 @@
 import { define } from "@/utils.ts";
-import { getForge, getOAuthCreds } from "@/lib/forge.ts";
+import { GITHUB_API, GITHUB_OAUTH_TOKEN } from "@/lib/github.ts";
+import { oauthCreds } from "@/lib/env.ts";
 import { buildCookie, clearCookie, parseCookies } from "@/lib/cookies.ts";
 import {
   createSession,
@@ -10,10 +11,11 @@ import {
 export const handler = define.handlers({
   async GET(ctx) {
     const forgeName = ctx.params.forge;
-    const forge = getForge(forgeName);
-    if (!forge) return new Response("Unknown forge", { status: 404 });
+    if (forgeName !== "github") {
+      return new Response("Unknown forge", { status: 404 });
+    }
 
-    const creds = getOAuthCreds(forgeName);
+    const creds = oauthCreds(forgeName);
     if (!creds) return new Response("OAuth not configured", { status: 500 });
 
     const reqUrl = new URL(ctx.req.url);
@@ -24,18 +26,17 @@ export const handler = define.handlers({
     }
 
     const cookies = parseCookies(ctx.req.headers.get("cookie"));
-    const stateCookie = cookies[`oauth_state_${forgeName}`];
-    if (!stateCookie) {
+    const storedState = cookies[`oauth_state_${forgeName}`];
+    const returnTo = cookies[`oauth_return_${forgeName}`] ?? "/";
+    if (!storedState) {
       return new Response("Missing state cookie", { status: 400 });
     }
-
-    const [storedState, returnTo] = splitOnce(stateCookie, "|");
     if (storedState !== returnedState) {
       return new Response("State mismatch", { status: 400 });
     }
 
     // Exchange code → access token
-    const tokenRes = await fetch(forge.oauthToken, {
+    const tokenRes = await fetch(GITHUB_OAUTH_TOKEN, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -64,7 +65,7 @@ export const handler = define.handlers({
     }
 
     // Identify the user
-    const userRes = await fetch(`${forge.apiBase}/user`, {
+    const userRes = await fetch(`${GITHUB_API}/user`, {
       headers: {
         Authorization: `token ${tokenData.access_token}`,
         Accept: "application/vnd.github+json",
@@ -93,7 +94,10 @@ export const handler = define.handlers({
       forge: forgeName,
     });
 
-    const safeReturn = returnTo && returnTo.startsWith("/") ? returnTo : "/";
+    // Re-validate the return cookie. The login handler already filtered it,
+    // but cookies are attacker-reachable if they can forge a state match - so
+    // defense-in-depth at the sink.
+    const safeReturn = isSafeReturnPath(returnTo) ? returnTo : "/";
 
     const headers = new Headers({ Location: safeReturn });
     headers.append(
@@ -107,11 +111,14 @@ export const handler = define.handlers({
       }),
     );
     headers.append("Set-Cookie", clearCookie(`oauth_state_${forgeName}`));
+    headers.append("Set-Cookie", clearCookie(`oauth_return_${forgeName}`));
     return new Response(null, { status: 302, headers });
   },
 });
 
-function splitOnce(s: string, sep: string): [string, string] {
-  const i = s.indexOf(sep);
-  return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 1)];
+function isSafeReturnPath(raw: string): boolean {
+  if (!raw.startsWith("/")) return false;
+  if (raw.startsWith("//")) return false;
+  if (raw.startsWith("/\\") || raw.startsWith("\\")) return false;
+  return true;
 }

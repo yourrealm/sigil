@@ -6,13 +6,16 @@ import { render } from "@deno/gfm";
 import { define } from "@/utils.ts";
 import { getRepoFile } from "@/lib/github.ts";
 import { CLAProvider, parseCLA, type ParsedCLA } from "@/lib/cla.tsx";
+import { signaturePath } from "@/lib/agreement.ts";
+import { GithubLogin, GithubRepoName } from "@/lib/gh-ids.ts";
 import type { Auth } from "@/lib/sessions.ts";
 import GithubSignBox from "@/islands/GithubSignBox.tsx";
 import { Wordmark } from "@/components/wordmark.tsx";
 import { Eyebrow } from "@/components/eyebrow.tsx";
 import { Button } from "@/components/button.tsx";
 import { DocHeading } from "@/components/doc-heading.tsx";
-import { PiGithubLogoDuotone } from "@preact-icons/pi";
+import { Card, CardBody, CardHead } from "@/components/card.tsx";
+import { PiGithubLogoDuotone, PiGitPullRequestDuotone } from "@preact-icons/pi";
 
 const FORGE_WEB: Record<string, string> = {
   github: "https://github.com",
@@ -35,8 +38,26 @@ export const handler = define.handlers({
     const { forge, owner, repo } = ctx.params;
     const target: RepoTarget = { forge, owner, repo };
 
+    if (forge !== "github") {
+      return page<CLAData>({
+        kind: "error",
+        ...target,
+        heading: "Unknown forge.",
+        message: `No handler registered for "${forge}".`,
+      }, { status: 404 });
+    }
+    if (
+      !GithubLogin.safeParse(owner).success ||
+      !GithubRepoName.safeParse(repo).success
+    ) {
+      return page<CLAData>({
+        kind: "error",
+        ...target,
+        heading: "Invalid repo reference.",
+        message: `"${owner}/${repo}" isn't a valid GitHub owner/repo pair.`,
+      }, { status: 400 });
+    }
     const fetched = await getRepoFile(
-      forge,
       owner,
       repo,
       "CLA.md",
@@ -109,7 +130,7 @@ function SignedInView(
     ? `${FORGE_WEB[forge]}/${owner}/${repo}`
     : null;
   return (
-    <CLAProvider value={{ cla, owner, repo }}>
+    <CLAProvider value={{ cla, forge, owner, repo }}>
       <PageShell target={{ forge, owner, repo }} hideRepoLabel>
         <main class="max-w-[1200px] mx-auto px-6 pb-24 grid grid-cols-12 gap-10">
           <article class="col-span-12 lg:col-span-7">
@@ -176,11 +197,22 @@ function SignedInView(
 
           <aside class="col-span-12 lg:col-span-5">
             <div class="lg:sticky lg:top-20">
-              <GithubSignBox
-                auth={auth}
-                cla={cla}
-                target={{ forge, owner, repo }}
-              />
+              {auth
+                ? (
+                  <GithubSignBox
+                    auth={auth}
+                    cla={cla}
+                    target={{ forge, owner, repo }}
+                  />
+                )
+                : (
+                  <LoggedOutCard
+                    owner={owner}
+                    repo={repo}
+                    returnTo={`/cla/${forge}/${owner}/${repo}`}
+                    version={cla.version}
+                  />
+                )}
               <HowItWorks owner={owner} repo={repo} userLogin={auth?.login} />
             </div>
           </aside>
@@ -215,7 +247,7 @@ function RatelimitView(
           </p>
           <p class="font-serif text-base text-ink2 leading-relaxed">
             Sign in with GitHub on the right and the agreement loads against
-            your personal 5000-per-hour quota — the same authorization you'd use
+            your personal 5000-per-hour quota - the same authorization you'd use
             to sign anyway.
           </p>
         </article>
@@ -303,9 +335,13 @@ function PageShell(
 
   return (
     <div>
-      <header class="max-w-[1200px] mx-auto px-6 pt-16 pb-8 flex items-end justify-between">
+      <header class="max-w-[1200px] mx-auto px-6 pt-8 pb-16 flex items-end justify-between">
         <div class="flex items-center gap-3">
-          <Wordmark href="/" tagline="Signatures for open source" />
+          <Wordmark
+            href="/"
+            tagline="Signatures for open source"
+            class="text-lg"
+          />
           {!compact && !hideRepoLabel && (
             <span class="hidden md:inline text-xs ml-4">
               <Eyebrow class="text-muted">{forge}:</Eyebrow> {repoUrl
@@ -345,9 +381,10 @@ function PageShell(
               href={repoUrl}
               target="_blank"
               rel="noopener noreferrer"
-              class="hover:text-ink transition-colors"
+              class="inline-flex items-center gap-1.5 hover:text-ink transition-colors"
             >
-              Source
+              <PiGithubLogoDuotone class="text-sm" />
+              <span>Source</span>
             </a>
           )}
         </div>
@@ -364,10 +401,22 @@ function HowItWorks(
   },
 ) {
   return (
-    <div class="mt-8 border-2 border-ink bg-paper shadow-sm">
-      <div class="px-4 py-2 border-b-2 border-ink">
+    <details class="group mt-8 border-2 border-ink bg-paper shadow-sm">
+      <summary class="px-4 py-2 border-b-2 border-transparent group-open:border-ink flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <Eyebrow>How this works</Eyebrow>
-      </div>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width={2.5}
+          class="transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </summary>
       <ol class="px-4 py-3 text-xs">
         <Step n="01">
           You authorize GitHub. We fork{" "}
@@ -377,7 +426,7 @@ function HowItWorks(
         <Step n="02">
           We commit{" "}
           <span class="font-mono text-ink font-bold">
-            .cla-signatures/{userLogin ?? "<you>"}.md
+            {signaturePath(userLogin ?? "<you>")}
           </span>{" "}
           to your fork - the commit is <strong>signed</strong>{" "}
           by GitHub's web-flow key.
@@ -391,7 +440,7 @@ function HowItWorks(
           Your signature is now public and verifiable - forever.
         </Step>
       </ol>
-    </div>
+    </details>
   );
 }
 
@@ -411,6 +460,49 @@ function Step(
       </span>
       <span class="text-ink2">{children}</span>
     </li>
+  );
+}
+
+function LoggedOutCard(
+  { owner, repo, returnTo, version }: {
+    owner: string;
+    repo: string;
+    returnTo: string;
+    version: string;
+  },
+) {
+  const loginHref = `/auth/github/login?return=${encodeURIComponent(returnTo)}`;
+  return (
+    <Card state="loggedOut">
+      <CardHead>
+        <div>
+          <div class="font-display text-3xl leading-none tracking-tight [&_em]:not-italic">
+            Sign <em>CLA</em>
+          </div>
+        </div>
+        <div class="text-right">
+          <Eyebrow class="opacity-80">Ver.</Eyebrow>
+          <div class="font-display text-xl leading-none mt-1">{version}</div>
+        </div>
+      </CardHead>
+      <CardBody>
+        <p class="text-sm text-ink2 leading-relaxed mb-5">
+          Signing opens a pull request against{" "}
+          <span class="font-mono text-ink">{owner}/{repo}</span>{" "}
+          that adds your signature.
+        </p>
+        <Button
+          asChild
+          class="w-full py-3.5 text-sm gap-2"
+          icon={<PiGitPullRequestDuotone class="text-xl" />}
+        >
+          <a href={loginHref}>
+            <PiGithubLogoDuotone class="text-xl" />
+            Sign in with GitHub
+          </a>
+        </Button>
+      </CardBody>
+    </Card>
   );
 }
 

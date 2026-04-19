@@ -12,9 +12,9 @@ By submitting a contribution to this project, you agree to the following:
    you have the right to submit it under this agreement. If your employer has
    rights to code you write, you confirm they have permitted this contribution.
 
-2. **License grant.** You grant Max Malm and all downstream recipients a
-   perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to
-   use, modify, and distribute your contribution.
+2. **License grant.** You grant Max Malm, his successors and assigns, and all
+   downstream recipients a perpetual, worldwide, non-exclusive, royalty-free,
+   irrevocable license to use, modify, and distribute your contribution.
 
 3. **Patent grant.** You grant a perpetual, worldwide, non-exclusive,
    royalty-free, irrevocable patent license covering patents you own or control

@@ -3,6 +3,7 @@ import { useContext } from "preact/hooks";
 import { cn } from "@/lib/cn.ts";
 
 export type CardState =
+  | "checking"
   | "loggedOut"
   | "loggedIn"
   | "resignNeeded"
@@ -22,6 +23,11 @@ export interface CardStateStyle {
 }
 
 export const CARD_STATES: Record<CardState, CardStateStyle> = {
+  checking: {
+    head: "bg-paper2 text-ink",
+    primaryButton: "bg-ink text-paper hover:bg-ink2",
+    switchOn: "bg-ink",
+  },
   loggedOut: {
     head: "bg-ink text-paper",
     primaryButton: "bg-ink text-paper hover:bg-ink2",
@@ -99,7 +105,7 @@ export function CardHead({ children }: { children?: ComponentChildren }) {
   return (
     <div
       class={cn(
-        "px-6 pt-5 pb-5 flex items-start justify-between gap-4 border-b-2 border-ink",
+        "px-6 pt-5 pb-5 flex items-center justify-between gap-4 border-b-2 border-ink",
         style.head,
       )}
     >

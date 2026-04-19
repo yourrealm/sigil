@@ -10,4 +10,6 @@ _fresh/
 # npm + other dependencies
 node_modules/
 vendor/
+# Local Deno KV file (see SIGIL_KV_PATH)
+.sigil-kv*
 

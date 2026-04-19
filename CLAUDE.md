@@ -7,8 +7,8 @@ code in this repository.
 
 Sigil is a web app for signing Contributor License Agreements against open
 source repos. A maintainer drops a `CLA.md` in their repo root; contributors
-visit `sigil.io/cla/<forge>/<owner>/<repo>` and sign by opening a PR that
-commits a signature file to `.cla-signatures/<handle>.md`. Re-signing overwrites
+visit `withsigil.eu/cla/<forge>/<owner>/<repo>` and sign by opening a PR that
+commits a signature file to `.signatures/cla/<handle>.md`. Re-signing overwrites
 the file, revoking deletes it.
 
 **The repo itself is the source of truth.** No database, no central signature
@@ -124,10 +124,10 @@ version: 1.0       # X.Y - quoted or unquoted is fine; integers are normalized t
 ```
 
 `name` drives the rendered heading on the signing page (e.g. "Realm Contributor
-License Agreement"). Required. Do not echo it into signature-file frontmatter -
-the full CLA body is already embedded there, so the project name is implicit.
+License Agreement"), and is embedded into each signature's `attestation` line.
+Required.
 
-### Signature file (`.cla-signatures/<handle>.md`, committed by Sigil on the contributor's behalf)
+### Signature file (`.signatures/cla/<handle>.md`, committed by Sigil on the contributor's behalf)
 
 Body is the full CLA text the contributor agreed to (copied from `CLA.md` at
 signing time - embedded so a later edit to `CLA.md` can't rewrite history).
@@ -135,7 +135,8 @@ signing time - embedded so a later edit to `CLA.md` can't rewrite history).
 Frontmatter:
 
 ```yaml
-agreement_version: <version from CLA.md at signing time>
+agreement_version: "<version from CLA.md at signing time>"
+attestation: "I, @<handle>, agree to the following <name> Contributor License Agreement, version <version>."
 client: sigil@<version>
 ```
 
@@ -148,19 +149,20 @@ history on the signature file is the tamper-evidence.
 ### Gatekeeper (runs in the target repo, not Sigil)
 
 Validation of signature PRs is a GitHub Action script that lives in the target
-repo and runs on PRs touching `.cla-signatures/`. It compares the PR against the
-repo's current `CLA.md`:
+repo and runs on PRs touching `.signatures/cla/`. It compares the PR against
+the repo's current `CLA.md`:
 
 - signature file body === `CLA.md` body (verbatim)
 - `agreement_version` === `CLA.md` frontmatter `version`
+- `attestation` === `"I, @<handle>, agree to the following <name> Contributor License Agreement, version <version>."` (with handle/name/version matching the other checks)
 - filename stem === commit author handle (lowercased)
-- PR touches exactly one file under `.cla-signatures/`
+- PR touches exactly one file under `.signatures/cla/`
 
 Sigil hosts and maintains this script (shipped as a reusable Action, to be
 authored later in a subdir of this repo) but does not run it. The split is
 deliberate: Sigil is UI + PR-opener, the repo's CI is the gate. This keeps
 "source of truth is the repo" honest - a maintainer who never points anyone at
-sigil.io can still accept signatures via the same Action.
+withsigil.eu can still accept signatures via the same Action.
 
 ## Commands
 

@@ -14,7 +14,7 @@ type ButtonElProps = JSX.IntrinsicElements["button"];
 
 export interface ButtonProps extends Omit<ButtonElProps, "size" | "icon"> {
   variant?: Variant;
-  /** Optional leading icon node — rendered before children. */
+  /** Optional leading icon node - rendered before children. */
   icon?: ComponentChildren;
   /**
    * If true, do not render a `<button>`; instead, merge the button's classes

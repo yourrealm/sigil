@@ -6,7 +6,7 @@ export interface DocHeadingProps {
   accent?: ComponentChildren;
   /** Optional smaller subheading rendered below. */
   sub?: ComponentChildren;
-  /** Override font size — e.g. "text-6xl" for the error view. */
+  /** Override font size - e.g. "text-6xl" for the error view. */
   size?: string;
   children?: ComponentChildren;
 }

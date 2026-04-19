@@ -54,6 +54,7 @@ export function parseCLA(text: string): ParseResult {
 /** The CLA being signed, plus the repo it came from. */
 export interface CLAContextValue {
   cla: ParsedCLA;
+  forge: string;
   owner: string;
   repo: string;
 }

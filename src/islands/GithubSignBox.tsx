@@ -1,19 +1,16 @@
-import { useSignal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from "@tanstack/preact-query";
-import { GithubAuthProvider, useGithubAuth } from "@/lib/auth.tsx";
+import { type Signal, useSignal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
+import { withQueryClientProvider } from "@/lib/query-client.tsx";
 import { CLAProvider, type ParsedCLA, useCLA } from "@/lib/cla.tsx";
-import {
-  type ForgeTarget,
-  openPrQuery,
-  signatureQuery,
-} from "@/lib/queries.ts";
-import type { OpenSignaturePr } from "@/lib/api.ts";
+import { type AgreementRow, signaturePath } from "@/lib/agreement.ts";
 import type { Auth } from "@/lib/sessions.ts";
+import {
+  type AgreementTarget,
+  postAccept,
+  postRefresh,
+  postRevoke,
+  useAgreementStatus,
+} from "@/islands/useAgreementStatus.ts";
 import { Button } from "@/components/button.tsx";
 import { Eyebrow } from "@/components/eyebrow.tsx";
 import { Switch } from "@/components/switch.tsx";
@@ -23,34 +20,145 @@ import {
   CardHead,
   type CardState,
 } from "@/components/card.tsx";
-import { Dialog, DialogHead } from "@/components/dialog.tsx";
 import { Banner } from "@/components/banner.tsx";
 import {
+  PiArrowClockwiseBold,
+  PiCheckBold,
   PiGithubLogoDuotone,
   PiGitPullRequestDuotone,
   PiSealCheckDuotone,
   PiSpinnerGapDuotone,
+  PiTrashDuotone,
   PiWarningOctagonDuotone,
+  PiXBold,
 } from "@preact-icons/pi";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { refetchOnWindowFocus: false, retry: 1 },
-  },
-});
+// -- UI states derived from AgreementRow -----------------------------------
+
+interface ViewCheckingState {
+  view: "checking";
+}
+interface ViewLoggedInState {
+  view: "loggedIn";
+}
+interface ViewResignNeededState {
+  view: "resignNeeded";
+  signedVersion: string;
+}
+interface ViewSubmittingState {
+  view: "submitting";
+  kind: "accept";
+  step: WorkingStep;
+  /** null during `step: "init"` - no fork yet. */
+  branch: string | null;
+  fork: { ownerLogin: string; repoName: string; defaultBranch: string } | null;
+}
+interface ViewRevokingState {
+  view: "revoking";
+  kind: "revoke";
+  step: WorkingStep;
+  branch: string | null;
+  fork: { ownerLogin: string; repoName: string; defaultBranch: string } | null;
+  reason: string;
+}
+interface ViewPendingState {
+  view: "pending";
+  pr: PendingPr;
+}
+interface ViewSignedState {
+  view: "signed";
+  merged: MergedInfo;
+}
+
+type WorkingStep =
+  | "init"
+  | "syncing"
+  | "branching"
+  | "writing"
+  | "opening_pr";
+type PendingPr = Extract<AgreementRow, { step: "pending" }>["pr"];
+type MergedInfo = Extract<AgreementRow, { kind: "signed" }>["merged"];
+
+type DerivedView =
+  | ViewCheckingState
+  | ViewLoggedInState
+  | ViewResignNeededState
+  | ViewSubmittingState
+  | ViewRevokingState
+  | ViewPendingState
+  | ViewSignedState;
+
+function deriveView(row: AgreementRow): DerivedView {
+  switch (row.kind) {
+    case "loading":
+      return { view: "checking" };
+    case "unsigned":
+      return { view: "loggedIn" };
+    case "signed":
+      return row.status === "current"
+        ? { view: "signed", merged: row.merged }
+        : { view: "resignNeeded", signedVersion: row.signedVersion };
+    case "accept":
+      if (row.step === "pending") return { view: "pending", pr: row.pr };
+      return {
+        view: "submitting",
+        kind: "accept",
+        step: row.step,
+        branch: row.step === "init" ? null : row.branch,
+        fork: row.step === "init" ? null : row.fork,
+      };
+    case "revoke":
+      if (row.step === "pending") return { view: "pending", pr: row.pr };
+      return {
+        view: "revoking",
+        kind: "revoke",
+        step: row.step,
+        branch: row.step === "init" ? null : row.branch,
+        fork: row.step === "init" ? null : row.fork,
+        reason: row.reason,
+      };
+  }
+}
+
+function cardStateFor(view: DerivedView, reviewingRevoke: boolean): CardState {
+  if (reviewingRevoke && view.view === "signed") return "revoke";
+  switch (view.view) {
+    case "checking":
+      return "checking";
+    case "loggedIn":
+      return "loggedIn";
+    case "resignNeeded":
+      return "resignNeeded";
+    case "submitting":
+      return "submitting";
+    case "pending":
+      return "pending";
+    case "signed":
+      return "signed";
+    case "revoking":
+      return "revoking";
+  }
+}
 
 const META: Record<CardState, { title: preact.JSX.Element }> = {
+  checking: {
+    title: (
+      <>
+        Checking <em>signature</em>…
+      </>
+    ),
+  },
   loggedOut: {
     title: (
       <>
-        Sign via pull&nbsp;<em>request</em>
+        Sign <em>CLA</em>
       </>
     ),
   },
   loggedIn: {
     title: (
       <>
-        Sign via pull&nbsp;<em>request</em>
+        Sign <em>CLA</em>
       </>
     ),
   },
@@ -76,11 +184,7 @@ const META: Record<CardState, { title: preact.JSX.Element }> = {
     ),
   },
   signed: {
-    title: (
-      <>
-        Signature <em>merged</em>
-      </>
-    ),
+    title: <em>Signed</em>,
   },
   revoke: {
     title: (
@@ -97,6 +201,8 @@ const META: Record<CardState, { title: preact.JSX.Element }> = {
     ),
   },
 };
+
+// -- user helpers ----------------------------------------------------------
 
 interface DisplayUser {
   handle: string;
@@ -125,187 +231,182 @@ function toDisplayUser(auth: Auth): DisplayUser {
   };
 }
 
-function useUser(): DisplayUser {
-  const auth = useGithubAuth();
-  if (!auth) throw new Error("useUser requires a signed-in user");
-  return toDisplayUser(auth);
-}
+// -- props + root ----------------------------------------------------------
 
 interface GithubSignBoxProps {
-  auth: Auth | null;
+  auth: Auth;
   cla: ParsedCLA;
-  target: ForgeTarget;
+  target: { forge: string; owner: string; repo: string };
 }
 
-export default function GithubSignBox(props: GithubSignBoxProps) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SignBoxInner {...props} />
-    </QueryClientProvider>
-  );
-}
+function SignBox(props: GithubSignBoxProps) {
+  const target: AgreementTarget = {
+    owner: props.target.owner,
+    repo: props.target.repo,
+    handle: props.auth.login,
+  };
+  const query = useAgreementStatus(target);
+  const row: AgreementRow = query.data ?? { kind: "loading" };
+  const reviewingRevoke = useSignal(false);
+  const revokeReason = useSignal("");
 
-function useDerivedState(
-  auth: Auth | null,
-  cla: ParsedCLA,
-  target: ForgeTarget,
-): { state: CardState; openPr: OpenSignaturePr | null } {
-  const handle = auth?.login ?? "";
-  const sigQ = useQuery({
-    ...signatureQuery(target, handle),
-    enabled: !!auth,
-  });
-  const prQ = useQuery({
-    ...openPrQuery(target, handle),
-    enabled: !!auth,
-  });
+  const view = deriveView(row);
+  // Leave the revoke-confirm UI if the server-side state has already flipped.
+  useEffect(() => {
+    if (view.view !== "signed") {
+      reviewingRevoke.value = false;
+    }
+  }, [view.view]);
+  const currentState = cardStateFor(view, reviewingRevoke.value);
+  const user = toDisplayUser(props.auth);
 
-  const openPr = prQ.data ?? null;
-  if (!auth) return { state: "loggedOut", openPr: null };
-  if (sigQ.data) {
-    const matches = sigQ.data.agreementVersion === cla.version;
-    return { state: matches ? "signed" : "resignNeeded", openPr };
-  }
-  if (openPr) return { state: "pending", openPr };
-  return { state: "loggedIn", openPr };
-}
+  const startRevokeReview = () => {
+    revokeReason.value = "";
+    reviewingRevoke.value = true;
+  };
+  const cancelRevokeReview = () => {
+    reviewingRevoke.value = false;
+  };
+  const confirmRevoke = async () => {
+    try {
+      await postRevoke(target, revokeReason.value);
+      // Don't clear `reviewingRevoke` here - the POST returns 202 before the
+      // server writes the `revoke working` row, and clearing now would flash
+      // the `signed` view back in until the ws catches up. The reactive
+      // effect above drops the flag once `view.view` is no longer `signed`.
+    } catch {
+      reviewingRevoke.value = false;
+    }
+  };
 
-function SignBoxInner(
-  { auth, cla, target }: GithubSignBoxProps,
-) {
-  const derived = useDerivedState(auth, cla, target);
-  const override = useSignal<CardState | null>(null);
-  const currentState = override.value ?? derived.state;
-  const changesRef = useRef<HTMLDialogElement>(null!);
-  const compareRef = useRef<HTMLDialogElement>(null!);
-
-  const setState = (next: CardState) => (override.value = next);
   const meta = META[currentState];
-  const openChanges = () => changesRef.current?.showModal();
-  const openCompare = () => compareRef.current?.showModal();
   const headEm = currentState === "submitting"
     ? "[&_em]:not-italic [&_em]:bg-ink [&_em]:text-yellow [&_em]:px-1"
     : "[&_em]:not-italic";
 
   return (
-    <GithubAuthProvider value={auth}>
-      <CLAProvider value={{ cla, owner: target.owner, repo: target.repo }}>
-        <Card id="signCard" state={currentState}>
-          <CardHead>
-            <div>
-              <div
-                class={`font-display text-3xl leading-none tracking-tight ${headEm}`}
-              >
-                {meta.title}
-              </div>
+    <CLAProvider
+      value={{
+        cla: props.cla,
+        forge: props.target.forge,
+        owner: props.target.owner,
+        repo: props.target.repo,
+      }}
+    >
+      <Card id="signCard" state={currentState}>
+        <CardHead>
+          <div>
+            <div
+              class={`font-display text-3xl leading-none tracking-tight ${headEm}`}
+            >
+              {meta.title}
             </div>
-            <div class="text-right mt-1">
-              <Eyebrow class="opacity-80">Ver.</Eyebrow>
-              <div class="font-display text-xl leading-none mt-1">
-                {cla.version}
-              </div>
+          </div>
+          <div class="text-right">
+            <Eyebrow class="opacity-80">Ver.</Eyebrow>
+            <div class="font-display text-xl leading-none mt-1">
+              {props.cla.version}
             </div>
-          </CardHead>
-          <CardBody>
-            <StateBody
-              state={currentState}
-              setState={setState}
-              openChanges={openChanges}
-              openCompare={openCompare}
-              openPr={derived.openPr}
-            />
-          </CardBody>
-        </Card>
-
-        {auth && (
-          <>
-            <ChangesDialog dialogRef={changesRef} />
-            <CompareDialog dialogRef={compareRef} />
-          </>
-        )}
-      </CLAProvider>
-    </GithubAuthProvider>
+          </div>
+        </CardHead>
+        <CardBody>
+          <StateBody
+            view={view}
+            user={user}
+            target={target}
+            reviewingRevoke={reviewingRevoke.value}
+            revokeReason={revokeReason}
+            startRevokeReview={startRevokeReview}
+            cancelRevokeReview={cancelRevokeReview}
+            confirmRevoke={confirmRevoke}
+          />
+        </CardBody>
+      </Card>
+    </CLAProvider>
   );
 }
 
-interface CardActions {
-  setState: (s: CardState) => void;
-  openChanges: () => void;
-  openCompare: () => void;
+interface StateBodyProps {
+  view: DerivedView;
+  user: DisplayUser;
+  target: AgreementTarget;
+  reviewingRevoke: boolean;
+  revokeReason: Signal<string>;
+  startRevokeReview: () => void;
+  cancelRevokeReview: () => void;
+  confirmRevoke: () => void;
 }
 
-function StateBody(
-  { state, openPr, ...actions }:
-    & CardActions
-    & { state: CardState; openPr: OpenSignaturePr | null },
-) {
-  switch (state) {
-    case "loggedOut":
-      return <LoggedOut />;
+function StateBody(props: StateBodyProps) {
+  const { view, user, target, reviewingRevoke } = props;
+  if (reviewingRevoke && view.view === "signed") {
+    return (
+      <Revoke
+        reason={props.revokeReason}
+        onCancel={props.cancelRevokeReview}
+        onConfirm={props.confirmRevoke}
+      />
+    );
+  }
+  switch (view.view) {
+    case "checking":
+      return <Checking />;
     case "loggedIn":
-      return (
-        <LoggedIn
-          setState={actions.setState}
-          openChanges={actions.openChanges}
-        />
-      );
+      return <LoggedIn user={user} target={target} />;
     case "resignNeeded":
       return (
         <ResignNeeded
-          setState={actions.setState}
-          openCompare={actions.openCompare}
+          user={user}
+          target={target}
+          signedVersion={view.signedVersion}
         />
       );
     case "submitting":
-      return <Submitting />;
-    case "pending":
-      return <Pending pr={openPr} />;
-    case "signed":
-      return <Signed setState={actions.setState} />;
-    case "revoke":
-      return <Revoke setState={actions.setState} />;
+      return (
+        <Submitting
+          user={user}
+          step={view.step}
+          branch={view.branch}
+          fork={view.fork}
+        />
+      );
     case "revoking":
-      return <Revoking />;
+      return (
+        <Revoking
+          user={user}
+          step={view.step}
+          branch={view.branch}
+          fork={view.fork}
+        />
+      );
+    case "pending":
+      return <Pending user={user} target={target} pr={view.pr} />;
+    case "signed":
+      return (
+        <Signed
+          user={user}
+          target={target}
+          merged={view.merged}
+          onRevoke={props.startRevokeReview}
+        />
+      );
   }
 }
 
-function LoggedOut() {
-  const loading = useSignal(false);
+// -- subviews --------------------------------------------------------------
+
+function Checking() {
   return (
-    <div class="animate-fade-up">
-      <UpstreamLine verb="Signing" tail="that adds your signature." />
-      <Button
-        class="w-full py-3.5 text-sm"
-        disabled={loading.value}
-        icon={loading.value
-          ? <PiSpinnerGapDuotone class="text-xl animate-spin" />
-          : <PiGithubLogoDuotone class="text-xl" />}
-        onClick={() => {
-          loading.value = true;
-          const ret = encodeURIComponent(
-            globalThis.location.pathname + globalThis.location.search,
-          );
-          globalThis.location.href = `/auth/github/login?return=${ret}`;
-        }}
-      >
-        {loading.value ? "Redirecting to GitHub…" : "Sign in with GitHub"}
-      </Button>
+    <div class="animate-fade-up flex items-center gap-3 py-6 text-sm text-ink2">
+      <PiSpinnerGapDuotone class="text-xl animate-spin" />
+      <span>Looking up your signature on the repo…</span>
     </div>
   );
 }
 
-function UpstreamLine({ verb, tail }: { verb: string; tail: string }) {
-  const { owner, repo } = useCLA();
-  return (
-    <p class="text-sm text-ink2 leading-relaxed mb-5">
-      {verb} opens a pull request against{" "}
-      <span class="font-mono text-ink">{owner}/{repo}</span> {tail}
-    </p>
-  );
-}
-
-function Identity({ extra }: { extra?: preact.ComponentChildren }) {
-  const user = useUser();
+function Identity(
+  { user, extra }: { user: DisplayUser; extra?: preact.ComponentChildren },
+) {
   return (
     <div class="mb-4">
       <Eyebrow class="mb-2 block">Signing as</Eyebrow>
@@ -336,17 +437,29 @@ function Identity({ extra }: { extra?: preact.ComponentChildren }) {
 }
 
 function LoggedIn(
-  { setState, openChanges }: {
-    setState: (s: CardState) => void;
-    openChanges: () => void;
+  { user, target }: {
+    user: DisplayUser;
+    target: AgreementTarget;
   },
 ) {
-  const user = useUser();
   const agreed = useSignal(false);
+  const submitting = useSignal(false);
+
+  const onClick = async () => {
+    submitting.value = true;
+    try {
+      await postAccept(target);
+    } catch {
+      submitting.value = false;
+    }
+    // On success, socket will flip to "submitting" view; leaving `submitting`
+    // true keeps the button disabled until the UI transitions.
+  };
 
   return (
     <div class="animate-fade-up">
       <Identity
+        user={user}
         extra={
           <form method="POST" action="/auth/github/logout">
             <button
@@ -359,27 +472,6 @@ function LoggedIn(
         }
       />
 
-      <button
-        type="button"
-        class="w-full mb-4 px-3 py-2.5 border-2 border-ink bg-paper shadow-sm flex items-center justify-between text-xs hover:bg-yellow transition-colors"
-        onClick={openChanges}
-      >
-        <Eyebrow>Changes</Eyebrow>
-        <span class="flex items-center gap-2 text-ink font-mono text-xs">
-          <span>.cla-signatures/{user.login}.md</span>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width={2.5}
-          >
-            <path d="M7 17L17 7M17 7H8M17 7v9" />
-          </svg>
-        </span>
-      </button>
-
       <Switch
         checked={agreed}
         label="I have read and agree to the agreement."
@@ -387,45 +479,42 @@ function LoggedIn(
 
       <Button
         class="w-full py-3.5 text-sm"
-        disabled={!agreed.value}
-        icon={<PiGitPullRequestDuotone class="text-base" />}
-        onClick={() => setState("submitting")}
+        disabled={!agreed.value || submitting.value}
+        icon={submitting.value
+          ? <PiSpinnerGapDuotone class="text-base animate-spin" />
+          : <PiGitPullRequestDuotone class="text-base" />}
+        onClick={onClick}
       >
-        Open signed pull request
+        {submitting.value
+          ? "Opening pull request…"
+          : "Open signed pull request"}
       </Button>
+
+      <div class="mt-4 pt-4 border-t-2 border-ink/10 flex items-center justify-end text-xs">
+        <RefreshButton target={target} />
+      </div>
     </div>
   );
 }
 
-interface PreviousSignature {
-  version: string;
-  signedAt: string;
-  previousEffectiveDate: string;
-  clauseDiff: { before: string; after: string; num: number };
-}
-
-const STUB_PREVIOUS: PreviousSignature = {
-  version: "1.3",
-  signedAt: "Jun 14, 2025",
-  previousEffectiveDate: "Jun 14, 2024",
-  clauseDiff: {
-    num: 4,
-    before:
-      "You grant the project author the right to transfer or assign the rights in this agreement to a successor entity.",
-    after:
-      "You grant the project author the right to transfer or assign the rights in this agreement to a successor entity, provided that entity is bound by the same requirement.",
-  },
-};
-
 function ResignNeeded(
-  { setState, openCompare }: {
-    setState: (s: CardState) => void;
-    openCompare: () => void;
+  { user, target, signedVersion }: {
+    user: DisplayUser;
+    target: AgreementTarget;
+    signedVersion: string;
   },
 ) {
   const { cla } = useCLA();
   const agreed = useSignal(false);
-  const prev = STUB_PREVIOUS;
+  const submitting = useSignal(false);
+  const onClick = async () => {
+    submitting.value = true;
+    try {
+      await postAccept(target);
+    } catch {
+      submitting.value = false;
+    }
+  };
 
   return (
     <div class="animate-fade-up">
@@ -433,31 +522,14 @@ function ResignNeeded(
         icon={<PiWarningOctagonDuotone />}
         kicker="Signature is out of date."
         footer={
-          <>
-            <span class="font-mono">v{prev.version} → v{cla.version}</span>
-            <span>&middot;</span>
-            <button
-              type="button"
-              class="underline underline-offset-2 hover:text-ink transition-colors"
-              onClick={openCompare}
-            >
-              Compare
-            </button>
-          </>
+          <span class="font-mono">v{signedVersion} → v{cla.version}</span>
         }
       >
         You signed an earlier version of this agreement. Please review and sign
         again.
       </Banner>
 
-      <Identity
-        extra={
-          <div class="text-right">
-            <Eyebrow>Previous</Eyebrow>
-            <div class="text-xs text-muted">{prev.signedAt}</div>
-          </div>
-        }
-      />
+      <Identity user={user} />
 
       <Switch
         checked={agreed}
@@ -467,9 +539,9 @@ function ResignNeeded(
 
       <Button
         class="w-full py-3.5 text-sm"
-        disabled={!agreed.value}
+        disabled={!agreed.value || submitting.value}
         icon={<PiGitPullRequestDuotone class="text-base" />}
-        onClick={() => setState("submitting")}
+        onClick={onClick}
       >
         Open re-sign pull request
       </Button>
@@ -477,51 +549,40 @@ function ResignNeeded(
   );
 }
 
-type StepStatus = "waiting" | "working" | "done";
+// Server-side flow step index in the 4-step list. `init` and `syncing` both
+// map to index 0 - the first item is the one that "spins" while we're
+// getting the fork ready.
+const STEP_INDEX: Record<WorkingStep, number> = {
+  init: 0,
+  syncing: 0,
+  branching: 1,
+  writing: 2,
+  opening_pr: 3,
+};
+
+type StepStatus = "waiting" | "working" | "done" | "failed";
+
+function statusesForStep(step: WorkingStep): StepStatus[] {
+  const idx = STEP_INDEX[step];
+  return [0, 1, 2, 3].map((i) => {
+    if (i < idx) return "done";
+    if (i === idx) return "working";
+    return "waiting";
+  });
+}
 
 const STEP_STATUS_CLASS: Record<StepStatus, string> = {
   waiting: "text-muted",
   working: "text-ink2",
   done: "text-accent-dk",
+  failed: "text-warn",
 };
 const STEP_STATUS_LABEL: Record<StepStatus, string> = {
   waiting: "waiting",
   working: "working…",
   done: "done",
+  failed: "failed",
 };
-
-function useStepAnimation(steps: number): StepStatus[] {
-  const statuses = useSignal<StepStatus[]>(Array(steps).fill("waiting"));
-  useEffect(() => {
-    statuses.value = Array(steps).fill("waiting");
-    const timers: number[] = [];
-    const timings = [320, 700, 500, 600, 550];
-    let t = 120;
-    for (let i = 0; i < steps; i++) {
-      const start = t;
-      const end = t + (timings[i] ?? 500);
-      timers.push(
-        setTimeout(() => {
-          const next = [...statuses.value];
-          next[i] = "working";
-          statuses.value = next;
-        }, start) as unknown as number,
-      );
-      timers.push(
-        setTimeout(() => {
-          const next = [...statuses.value];
-          next[i] = "done";
-          statuses.value = next;
-        }, end) as unknown as number,
-      );
-      t = end;
-    }
-    return () => {
-      for (const id of timers) clearTimeout(id);
-    };
-  }, [steps]);
-  return statuses.value;
-}
 
 function StepList(
   { steps, statuses }: { steps: string[]; statuses: StepStatus[] },
@@ -548,44 +609,71 @@ function StepList(
 }
 
 function StepDot({ status }: { status: StepStatus }) {
-  if (status === "done") {
-    return (
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width={3}
-        class="text-accent-dk"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    );
-  }
+  if (status === "done") return <PiCheckBold class="text-accent-dk text-xs" />;
+  if (status === "failed") return <PiXBold class="text-warn text-xs" />;
   return <span class="w-2 h-2 bg-ink" />;
 }
 
-function Submitting() {
-  const user = useUser();
+function Submitting(
+  { user, step, branch, fork }: {
+    user: DisplayUser;
+    step: WorkingStep;
+    branch: string | null;
+    fork:
+      | { ownerLogin: string; repoName: string; defaultBranch: string }
+      | null;
+  },
+) {
   const { owner, repo } = useCLA();
   const upstream = `${owner}/${repo}`;
+  const statuses = statusesForStep(step);
   const steps = [
-    `Fork ${upstream} → ${user.login}/${repo}`,
-    `Write .cla-signatures/${user.login}.md`,
-    "Sign commit with GitHub web-flow key",
+    fork
+      ? `Fork ${upstream} → ${fork.ownerLogin}/${fork.repoName}`
+      : `Fork ${upstream}`,
+    branch ? `Create ${branch} branch on fork` : "Create branch on fork",
+    `Commit ${signaturePath(user.login)} (web-flow signed)`,
     `Open PR → ${upstream}`,
   ];
-  const statuses = useStepAnimation(steps.length);
-  const allDone = statuses.every((s) => s === "done");
   return (
     <div class="animate-fade-up">
       <Eyebrow class="mb-3 block">Opening pull request</Eyebrow>
       <StepList steps={steps} statuses={statuses} />
       <p class="mt-4 text-xs text-muted leading-relaxed">
-        {allDone
-          ? "Pull request opened. A maintainer will review and merge."
-          : "Orchestrating the fork + commit + PR."}
+        Orchestrating the fork + commit + PR.
+      </p>
+    </div>
+  );
+}
+
+function Revoking(
+  { user, step, branch, fork }: {
+    user: DisplayUser;
+    step: WorkingStep;
+    branch: string | null;
+    fork:
+      | { ownerLogin: string; repoName: string; defaultBranch: string }
+      | null;
+  },
+) {
+  const { cla, owner, repo } = useCLA();
+  const upstream = `${owner}/${repo}`;
+  const statuses = statusesForStep(step);
+  const steps = [
+    fork
+      ? `Fork ${upstream} → ${fork.ownerLogin}/${fork.repoName}`
+      : `Fork ${upstream}`,
+    branch ? `Create ${branch} branch on fork` : "Create branch on fork",
+    `Delete ${signaturePath(user.login)} (web-flow signed)`,
+    `Open PR → ${upstream}`,
+  ];
+  return (
+    <div class="animate-fade-up">
+      <Eyebrow class="mb-3 block">Opening revocation pull request</Eyebrow>
+      <StepList steps={steps} statuses={statuses} />
+      <p class="mt-4 text-xs text-muted leading-relaxed">
+        Preparing the delete. Past contributions stay licensed under v{cla
+          .version} - that grant can't be withdrawn.
       </p>
     </div>
   );
@@ -594,11 +682,11 @@ function Submitting() {
 function describeMergeableState(state: string): string {
   switch (state) {
     case "clean":
-      return "Ready to merge — waiting on a maintainer.";
+      return "Ready to merge - waiting on a maintainer.";
     case "blocked":
       return "Blocked by required reviews or branch protection.";
     case "behind":
-      return "Behind the base branch — update required.";
+      return "Behind the base branch - update required.";
     case "dirty":
       return "Has merge conflicts.";
     case "unstable":
@@ -613,26 +701,25 @@ function describeMergeableState(state: string): string {
   }
 }
 
-function Pending({ pr }: { pr: OpenSignaturePr | null }) {
-  const user = useUser();
+function Pending(
+  { user, target, pr }: {
+    user: DisplayUser;
+    target: AgreementTarget;
+    pr: PendingPr;
+  },
+) {
   const { owner, repo } = useCLA();
   const upstream = `${owner}/${repo}`;
-  if (!pr) {
-    return (
-      <div class="animate-fade-up">
-        <p class="text-sm text-ink2 leading-relaxed">
-          Loading pull request…
-        </p>
-      </div>
-    );
-  }
   const status = describeMergeableState(pr.mergeableState);
+  const isRevoke = pr.kind === "revoke";
   return (
     <div class="animate-fade-up">
       <div class="mb-5 border-2 border-ink overflow-hidden">
         <div class="px-4 py-2.5 bg-ink text-paper flex items-center justify-between">
           <div class="flex items-center gap-2 text-xs">
-            <PiGitPullRequestDuotone class="text-base text-yellow" />
+            <PiGitPullRequestDuotone
+              class={`text-base ${isRevoke ? "text-revoke" : "text-yellow"}`}
+            />
             <span class="font-mono">{upstream}#{pr.number}</span>
           </div>
           <a
@@ -647,15 +734,20 @@ function Pending({ pr }: { pr: OpenSignaturePr | null }) {
         </div>
         <div class="px-4 py-3 bg-paper">
           <div class="text-sm text-ink font-medium">
-            Signature PR from <span class="font-mono">{user.handle}</span>
+            {isRevoke ? "Revocation" : "Signature"} PR from{" "}
+            <span class="font-mono">{user.handle}</span>
           </div>
           <div class="mt-2 text-xs text-muted font-mono">
-            .cla-signatures/{user.login}.md
+            {isRevoke ? "− " : ""}
+            {signaturePath(user.login)}
           </div>
         </div>
       </div>
 
-      <Eyebrow class="mb-2 block">Status</Eyebrow>
+      <div class="mb-2 flex items-center justify-between">
+        <Eyebrow>Status</Eyebrow>
+        <RefreshButton target={target} />
+      </div>
       <p class="text-sm text-ink2 leading-relaxed mb-5">{status}</p>
 
       <p class="text-xs text-muted leading-relaxed mb-5">
@@ -673,106 +765,121 @@ function Pending({ pr }: { pr: OpenSignaturePr | null }) {
   );
 }
 
-const STUB_PR = { number: 3247, date: "April 19, 2026", commit: "8f3ca91d" };
+function RefreshButton({ target }: { target: AgreementTarget }) {
+  const busy = useSignal(false);
+  const onClick = async () => {
+    if (busy.value) return;
+    busy.value = true;
+    try {
+      await postRefresh(target);
+    } catch {
+      // Surface a quieter failure: the ws will eventually catch up anyway.
+    } finally {
+      busy.value = false;
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy.value}
+      class="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-eyebrow text-muted hover:text-ink transition-colors disabled:opacity-50"
+      aria-label="Refresh"
+    >
+      <PiArrowClockwiseBold
+        class={`text-sm ${busy.value ? "animate-spin" : ""}`}
+      />
+      Refresh
+    </button>
+  );
+}
 
-function Signed({ setState }: { setState: (s: CardState) => void }) {
-  const user = useUser();
-  const { cla, owner, repo } = useCLA();
-  const upstream = `${owner}/${repo}`;
+function formatSignedDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function Signed(
+  { user, target, merged, onRevoke }: {
+    user: DisplayUser;
+    target: AgreementTarget;
+    merged: MergedInfo;
+    onRevoke: () => void;
+  },
+) {
+  const { cla } = useCLA();
+  const prHref = merged.prHtmlUrl ?? merged.commitUrl;
+  const dateLabel = formatSignedDate(merged.commitDate);
+
   return (
     <div class="animate-fade-up">
       <div class="mb-5 border-2 border-ink overflow-hidden">
-        <div class="px-4 py-2.5 bg-ink text-paper flex items-center justify-between">
-          <div class="flex items-center gap-2 text-xs">
-            <PiGitPullRequestDuotone class="text-base text-[#8FE0B3]" />
-            <span class="font-mono">{upstream}#{STUB_PR.number}</span>
+        <div class="px-4 py-2.5 bg-ink text-paper flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 text-xs min-w-0">
+            <PiGitPullRequestDuotone class="text-base text-[#8FE0B3] shrink-0" />
+            <span class="font-mono truncate">
+              chore(cla): sign {cla.name} v{cla.version} as {user.handle}
+            </span>
           </div>
           <a
-            href="#"
-            class="text-paper/70 hover:text-paper transition-colors"
+            href={prHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-paper/70 hover:text-paper transition-colors shrink-0"
             aria-label="View on GitHub"
           >
             <PiGithubLogoDuotone class="text-xl" />
           </a>
         </div>
         <div class="px-4 py-3 bg-paper">
-          <div class="text-sm text-ink font-medium">
-            chore(cla): sign v{cla.version} as{" "}
-            <span class="font-mono">{user.handle}</span>
-          </div>
-          <div class="mt-2 flex items-center gap-3 text-xs text-muted font-mono">
-            <span class="inline-flex items-center gap-1">
-              <PiSealCheckDuotone class="text-sm text-ok" />
-              Verified
-            </span>
-            <span>·</span>
-            <span>{STUB_PR.date}</span>
+          <div class="flex items-center gap-3 text-xs text-muted font-mono">
+            {merged.verified && (
+              <>
+                <span class="inline-flex items-center gap-1">
+                  <PiSealCheckDuotone class="text-sm text-ok" />
+                  Verified
+                </span>
+                <span>·</span>
+              </>
+            )}
+            <span>{dateLabel}</span>
           </div>
         </div>
-      </div>
-
-      <Eyebrow class="mb-2 block">Thank you</Eyebrow>
-      <h3 class="font-display text-3xl leading-tight text-ink">
-        Signature <em class="italic">merged</em>.
-      </h3>
-      <p class="mt-3 text-sm text-ink2 leading-relaxed">
-        Your signature file is on{" "}
-        <span class="font-mono text-ink">main</span>. Frontmatter validated,
-        commit verified, merged by a maintainer. You're cleared to contribute to
-        {" "}
-        {cla.name}.
-      </p>
-
-      <div class="mt-5 border-2 border-ink bg-paper overflow-hidden">
-        <div class="px-4 py-2 border-b-2 border-ink flex items-center justify-between">
-          <Eyebrow class="text-muted">Artifact</Eyebrow>
-          <span class="font-mono text-xs text-muted">{upstream}@main</span>
-        </div>
-        <dl class="px-4 py-3 text-xs">
-          <div class="py-2 flex justify-between border-b border-ink/10">
-            <dt class="text-muted">File</dt>
-            <dd class="font-mono text-ink text-right">
-              .cla-signatures/{user.login}.md
-            </dd>
-          </div>
-          <div class="py-2 flex justify-between border-b border-ink/10">
-            <dt class="text-muted">Author</dt>
-            <dd class="font-mono text-ink">{user.handle}</dd>
-          </div>
-          <div class="py-2 flex justify-between border-b border-ink/10">
-            <dt class="text-muted">Commit</dt>
-            <dd class="font-mono text-ink">{STUB_PR.commit} · verified</dd>
-          </div>
-          <div class="py-2 flex justify-between border-b border-ink/10">
-            <dt class="text-muted">Agreement</dt>
-            <dd class="text-ink">{cla.name} CLA v{cla.version}</dd>
-          </div>
-          <div class="py-2 flex justify-between">
-            <dt class="text-muted">Status</dt>
-            <dd class="text-ink">Merged to main</dd>
-          </div>
-        </dl>
       </div>
 
       <div class="mt-5 flex items-center gap-2">
-        <Button asChild variant="ghost" class="flex-1 px-4 py-2.5 text-sm">
-          <a href="#">View pull request</a>
+        <Button asChild class="flex-1 px-4 py-2.5 text-sm">
+          <a href={merged.fileUrl} target="_blank" rel="noopener noreferrer">
+            View signature
+          </a>
         </Button>
-        <button
-          type="button"
-          class="px-4 py-2.5 text-xs text-muted hover:text-ink transition-colors"
-        >
-          View signature file →
-        </button>
+        {merged.prHtmlUrl && (
+          <a
+            href={merged.prHtmlUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2.5 text-xs text-muted hover:text-ink transition-colors"
+          >
+            View pull request →
+          </a>
+        )}
       </div>
 
       <div class="mt-4 pt-4 border-t-2 border-ink/10 flex items-center justify-between text-xs">
-        <span class="text-muted">Changed your mind?</span>
+        <RefreshButton target={target} />
         <button
           type="button"
-          class="text-muted hover:text-ink underline underline-offset-2 transition-colors"
-          onClick={() => setState("revoke")}
+          class="inline-flex items-center gap-1.5 text-muted hover:text-ink underline underline-offset-2 transition-colors"
+          onClick={onRevoke}
         >
+          <PiTrashDuotone class="text-sm no-underline" />
           Revoke signature
         </button>
       </div>
@@ -780,42 +887,25 @@ function Signed({ setState }: { setState: (s: CardState) => void }) {
   );
 }
 
-function Revoke({ setState }: { setState: (s: CardState) => void }) {
-  const user = useUser();
+function Revoke(
+  { reason, onCancel, onConfirm }: {
+    reason: Signal<string>;
+    onCancel: () => void;
+    onConfirm: () => void;
+  },
+) {
   const agreed = useSignal(false);
-  const reason = useSignal("");
+  const submitting = useSignal(false);
+  const confirm = async () => {
+    submitting.value = true;
+    try {
+      await onConfirm();
+    } catch {
+      submitting.value = false;
+    }
+  };
   return (
     <div class="animate-fade-up">
-      <p class="text-sm text-ink2 leading-snug mb-4">
-        Revoking opens a pull request that{" "}
-        <span class="font-mono text-ink">deletes</span> your signature file.
-      </p>
-
-      <ul class="space-y-2 text-sm text-ink2 leading-snug mb-5">
-        <li class="flex gap-2">
-          <span class="text-muted mt-[3px]">-</span>
-          <span>
-            Past contributions remain licensed under the version you signed.
-            That grant is perpetual and cannot be withdrawn.
-          </span>
-        </li>
-        <li class="flex gap-2">
-          <span class="text-muted mt-[3px]">-</span>
-          <span>
-            Future pull requests from{" "}
-            <span class="font-mono text-ink">{user.handle}</span>{" "}
-            will be blocked by CI until you sign again.
-          </span>
-        </li>
-        <li class="flex gap-2">
-          <span class="text-muted mt-[3px]">-</span>
-          <span>
-            Git history preserves your original signature for audit - the file
-            is only absent from the current tree.
-          </span>
-        </li>
-      </ul>
-
       <div class="mb-4">
         <label class="mb-2 flex items-center justify-between">
           <Eyebrow class="text-muted">Reason</Eyebrow>
@@ -831,17 +921,9 @@ function Revoke({ setState }: { setState: (s: CardState) => void }) {
             e,
           ) => (reason.value = (e.currentTarget as HTMLTextAreaElement).value)}
         />
-        <div class="mt-1 flex items-center justify-between text-xs text-muted2 font-mono">
-          <span>Posted to the PR body (not stored in the signature file).</span>
+        <div class="mt-1 flex items-center justify-end text-xs text-muted2 font-mono">
           <span>{reason.value.length}/200</span>
         </div>
-      </div>
-
-      <div class="mb-5 p-3 border-2 border-ink bg-paper2/50">
-        <Eyebrow class="text-muted mb-2 block">Diff preview</Eyebrow>
-        <pre class="m-0 text-xs leading-snug font-mono text-warn">
-          &minus; .cla-signatures/{user.login}.md
-        </pre>
       </div>
 
       <Switch
@@ -851,9 +933,9 @@ function Revoke({ setState }: { setState: (s: CardState) => void }) {
 
       <Button
         class="w-full px-4 py-3 text-sm"
-        disabled={!agreed.value}
+        disabled={!agreed.value || submitting.value}
         icon={<PiGitPullRequestDuotone class="text-base" />}
-        onClick={() => setState("revoking")}
+        onClick={confirm}
       >
         Open revocation pull request
       </Button>
@@ -862,7 +944,7 @@ function Revoke({ setState }: { setState: (s: CardState) => void }) {
         <button
           type="button"
           class="text-xs text-muted hover:text-ink underline underline-offset-2 transition-colors"
-          onClick={() => setState("signed")}
+          onClick={onCancel}
         >
           Cancel, keep signature
         </button>
@@ -871,170 +953,4 @@ function Revoke({ setState }: { setState: (s: CardState) => void }) {
   );
 }
 
-function Revoking() {
-  const user = useUser();
-  const { cla, owner, repo } = useCLA();
-  const upstream = `${owner}/${repo}`;
-  const steps = [
-    `Delete .cla-signatures/${user.login}.md`,
-    "Sign commit with GitHub web-flow key",
-    `Open PR → ${upstream}`,
-  ];
-  const statuses = useStepAnimation(steps.length);
-  const allDone = statuses.every((s) => s === "done");
-  return (
-    <div class="animate-fade-up">
-      <Eyebrow class="mb-3 block">Opening revocation pull request</Eyebrow>
-      <StepList steps={steps} statuses={statuses} />
-      <p class="mt-4 text-xs text-muted leading-relaxed">
-        {allDone
-          ? `Revocation PR opened. Past contributions stay licensed under v${cla.version} - that grant can't be withdrawn.`
-          : `Preparing the delete. Your past contributions stay licensed under v${cla.version} - that grant can't be withdrawn.`}
-      </p>
-    </div>
-  );
-}
-
-function ChangesDialog(
-  { dialogRef }: { dialogRef: preact.Ref<HTMLDialogElement> },
-) {
-  const user = useUser();
-  const { cla } = useCLA();
-  return (
-    <Dialog
-      dialogRef={dialogRef}
-      id="changesDialog"
-      class="max-w-[640px] w-[92vw]"
-    >
-      <div class="bg-paper">
-        <DialogHead
-          eyebrow="Changes"
-          title={`.cla-signatures/${user.login}.md`}
-        />
-
-        <div class="px-5 py-3 border-b-2 border-ink flex items-center gap-4 text-xs text-ink2 font-mono">
-          <span class="inline-flex items-center gap-1.5">
-            <span class="w-2 h-2 bg-ok"></span>new file
-          </span>
-          <span>·</span>
-          <span>+14 lines</span>
-          <span class="ml-auto inline-flex items-center gap-1.5 font-bold">
-            <PiSealCheckDuotone class="text-sm text-ok" />
-            signed by GitHub web-flow
-          </span>
-        </div>
-
-        <pre class="m-0 p-4 text-xs leading-relaxed bg-ink text-paper overflow-x-auto font-mono">
-          <span class="text-muted2">---</span>
-          {"\n"}
-          <span class="text-[#9BB7E5]">agreement_version:</span>{" "}
-          <span class="text-yellow">"{cla.version}"</span>
-          {"\n"}
-          <span class="text-[#9BB7E5]">client:</span> sigil@0.1.0
-          {"\n"}
-          <span class="text-muted2">---</span>
-          {"\n\n"}
-          I, {user.handle}, agree to the following {cla.name}{" "}
-          Contributor License Agreement, version {cla.version}.
-          {"\n\n"}
-          <span class="text-muted2">---</span>
-          {"\n\n"}
-          <span class="text-muted2">
-            …full CLA body captured at time of signing…
-          </span>
-        </pre>
-
-        <div class="px-5 py-3 border-t-2 border-ink flex items-center justify-between text-xs">
-          <span class="font-mono text-ink2">
-            chore(cla): sign v{cla.version}
-          </span>
-          <form method="dialog">
-            <button
-              type="submit"
-              class="px-3 py-1.5 text-xs border-2 border-ink bg-paper shadow-sm hover:bg-yellow transition-colors font-semibold"
-            >
-              Close
-            </button>
-          </form>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function CompareDialog(
-  { dialogRef }: { dialogRef: preact.Ref<HTMLDialogElement> },
-) {
-  const { cla } = useCLA();
-  const prev = STUB_PREVIOUS;
-  return (
-    <Dialog
-      dialogRef={dialogRef}
-      id="compareDialog"
-      class="max-w-[760px] w-[92vw]"
-    >
-      <div class="bg-paper">
-        <DialogHead
-          eyebrow="Amendment"
-          title={`${cla.name} CLA - v${prev.version} → v${cla.version}`}
-        />
-
-        <div class="px-5 py-3 border-b-2 border-ink flex items-center gap-4 text-xs text-muted">
-          <span>
-            <span class="font-mono text-ink2">v{prev.version}</span>
-            &nbsp;· {prev.previousEffectiveDate}
-          </span>
-          <span class="w-1 h-1 bg-ink"></span>
-          <span>
-            <span class="font-mono text-ink2">v{cla.version}</span>
-          </span>
-          <span class="ml-auto font-mono text-xs">1 clause changed</span>
-        </div>
-
-        <div class="grid grid-cols-2">
-          <div class="p-5 border-r-2 border-ink">
-            <Eyebrow class="text-muted mb-3 block">
-              v{prev.version} · before
-            </Eyebrow>
-            <ClauseDiff
-              num={prev.clauseDiff.num}
-              text={prev.clauseDiff.before}
-            />
-          </div>
-          <div class="p-5 bg-paper2/40">
-            <Eyebrow class="text-muted mb-3 block">
-              v{cla.version} · after
-            </Eyebrow>
-            <ClauseDiff
-              num={prev.clauseDiff.num}
-              text={prev.clauseDiff.after}
-            />
-          </div>
-        </div>
-
-        <div class="px-5 py-3 border-t-2 border-ink flex items-center justify-between text-xs text-muted">
-          <span>Stub diff - real clause-level diff comes later.</span>
-          <form method="dialog">
-            <button
-              type="submit"
-              class="px-3 py-1.5 text-xs border-2 border-ink bg-paper shadow-sm hover:bg-yellow transition-colors font-semibold"
-            >
-              Close
-            </button>
-          </form>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function ClauseDiff({ num, text }: { num: number; text: string }) {
-  return (
-    <div class="font-serif text-sm text-ink leading-relaxed relative pl-14">
-      <span class="absolute left-0 -top-[0.05em] font-display text-3xl leading-none tracking-tight text-ink">
-        {num}
-      </span>
-      <p>{text}</p>
-    </div>
-  );
-}
+export default withQueryClientProvider(SignBox);
