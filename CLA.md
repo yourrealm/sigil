@@ -1,6 +1,6 @@
 ---
 name: Sigil
-# version: 1.0
+version: 1.0
 ---
 
 This license agreement exists so copyright can be transferred to a foundation in
