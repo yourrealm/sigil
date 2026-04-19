@@ -42,28 +42,30 @@ not scaffolded yet.
 ### Project structure
 
 ```
-routes/
-  index.tsx                         # landing
-  cla/[forge]/[owner]/[repo].tsx    # signing page (the product)
-  auth/[forge]/login.ts             # OAuth start - sets state cookie, redirects to forge
-  auth/[forge]/callback.ts          # OAuth finish - exchanges code, creates KV session
-  auth/[forge]/logout.ts            # POST - clears session
-  api/[forge]/[...path].ts          # forge API proxy (session-optional)
-  _app.tsx                          # outer <html> wrapper
-islands/SignBox.tsx                 # sign-card state machine + dialogs + dev bar
-lib/
-  forge.ts                          # forge registry (OAuth endpoints, API base, scopes)
-  sessions.ts                       # Deno KV session store
-  cookies.ts                        # parse / build / clear cookies
-assets/styles.css                   # Tailwind 4 @theme + custom brutalism CSS
-static/                             # served as-is (favicon, logo)
-main.ts                             # Fresh App entry
-client.ts                           # client entry (loads styles)
-utils.ts                            # `define` + `State` type
-vite.config.ts                      # Fresh + Tailwind Vite plugins
+src/
+  routes/
+    index.tsx                         # landing
+    cla/[forge]/[owner]/[repo].tsx    # signing page (the product)
+    auth/[forge]/login.ts             # OAuth start - sets state cookie, redirects to forge
+    auth/[forge]/callback.ts          # OAuth finish - exchanges code, creates KV session
+    auth/[forge]/logout.ts             # POST - clears session
+    api/[forge]/[...path].ts          # forge API proxy (session-optional)
+    _app.tsx                          # outer <html> wrapper
+  islands/SignBox.tsx                 # sign-card state machine + dialogs + dev bar
+  lib/
+    forge.ts                          # forge registry (OAuth endpoints, API base, scopes)
+    sessions.ts                       # Deno KV session store
+    cookies.ts                        # parse / build / clear cookies
+  assets/styles.css                   # Tailwind 4 @theme + custom brutalism CSS
+  main.ts                             # Fresh App entry
+  client.ts                           # client entry (loads styles)
+  utils.ts                            # `define` + `State` type
+static/                               # served as-is (favicon, logo)
+vite.config.ts                        # Fresh + Tailwind Vite plugins (points plugin at ./src)
 ```
 
-Import alias `@/` resolves to repo root (set in `deno.json`).
+Import alias `@/` resolves to `./src/` (set in `deno.json`). Root stays reserved
+for config/build artifacts.
 
 ### Multi-forge shape
 

@@ -22,7 +22,7 @@
     "kv"
   ],
   "imports": {
-    "@/": "./",
+    "@/": "./src/",
     "@deno/gfm": "jsr:@deno/gfm@^0.12.0",
     "@preact-icons/pi": "jsr:@preact-icons/pi@^1.0.13",
     "@std/dotenv": "jsr:@std/dotenv@^0.225.6",
