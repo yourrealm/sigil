@@ -20,6 +20,9 @@
   ],
   "imports": {
     "@/": "./",
+    "@deno/gfm": "jsr:@deno/gfm@^0.12.0",
+    "@std/dotenv": "jsr:@std/dotenv@^0.225.6",
+    "@std/front-matter": "jsr:@std/front-matter@^1.0.9",
     "fresh": "jsr:@fresh/core@^2.2.2",
     "preact": "npm:preact@^10.27.2",
     "@preact/signals": "npm:@preact/signals@^2.5.0",

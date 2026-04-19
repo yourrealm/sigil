@@ -51,6 +51,33 @@ body {
   color: #111114;
   font-weight: 700;
 }
+/* Rendered-markdown ordered lists inside the CLA body — big hanging Archivo Black numbers
+   so maintainer-authored lists match the design's clause style. */
+.cla-body ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: clause;
+}
+.cla-body ol > li {
+  position: relative;
+  padding-left: 3.5rem;
+  counter-increment: clause;
+}
+.cla-body ol > li + li {
+  margin-top: 1.8rem;
+}
+.cla-body ol > li::before {
+  content: counter(clause);
+  position: absolute;
+  left: 0;
+  top: -0.05em;
+  font-family: "Archivo Black", sans-serif;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #111114;
+  letter-spacing: -0.02em;
+}
 
 .clause {
   position: relative;

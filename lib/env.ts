@@ -1,3 +1,4 @@
+import "@std/dotenv/load";
 import { z } from "zod";
 
 const Schema = z.object({

@@ -116,7 +116,7 @@ Frontmatter + markdown body. Body is the CLA text shown to contributors.
 ```yaml
 ---
 name: Realm        # project/agreement display name; used in the signing page heading
-version: 1.0       # X.Y only
+version: 1.0       # X.Y — quoted or unquoted is fine; integers are normalized to X.0
 ---
 ```
 
