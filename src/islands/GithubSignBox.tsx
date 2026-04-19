@@ -39,12 +39,8 @@ const queryClient = new QueryClient({
   },
 });
 
-const META: Record<
-  CardState,
-  { eyebrow: string; title: preact.JSX.Element }
-> = {
+const META: Record<CardState, { title: preact.JSX.Element }> = {
   loggedOut: {
-    eyebrow: "Unsigned",
     title: (
       <>
         Sign via pull&nbsp;<em>request</em>
@@ -52,7 +48,6 @@ const META: Record<
     ),
   },
   loggedIn: {
-    eyebrow: "Ready to sign",
     title: (
       <>
         Sign via pull&nbsp;<em>request</em>
@@ -60,7 +55,6 @@ const META: Record<
     ),
   },
   resignNeeded: {
-    eyebrow: "Amended",
     title: (
       <>
         Please <em>re-sign</em>
@@ -68,7 +62,6 @@ const META: Record<
     ),
   },
   submitting: {
-    eyebrow: "In flight",
     title: (
       <>
         Opening pull <em>request</em>…
@@ -76,7 +69,6 @@ const META: Record<
     ),
   },
   pending: {
-    eyebrow: "Pending merge",
     title: (
       <>
         Awaiting <em>review</em>
@@ -84,7 +76,6 @@ const META: Record<
     ),
   },
   signed: {
-    eyebrow: "Signed",
     title: (
       <>
         Signature <em>merged</em>
@@ -92,7 +83,6 @@ const META: Record<
     ),
   },
   revoke: {
-    eyebrow: "Revoke",
     title: (
       <>
         Withdraw <em>signature</em>
@@ -100,7 +90,6 @@ const META: Record<
     ),
   },
   revoking: {
-    eyebrow: "Withdrawing",
     title: (
       <>
         Opening revocation&nbsp;<em>PR</em>…
@@ -204,7 +193,6 @@ function SignBoxInner(
         <Card id="signCard" state={currentState}>
           <CardHead>
             <div>
-              <Eyebrow class="mb-2 block opacity-80">{meta.eyebrow}</Eyebrow>
               <div
                 class={`font-display text-3xl leading-none tracking-tight ${headEm}`}
               >
