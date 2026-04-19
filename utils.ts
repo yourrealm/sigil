@@ -1,9 +1,8 @@
 import { createDefine } from "fresh";
 
-// This specifies the type of "ctx.state" which is used to share
-// data among middlewares, layouts and routes.
-export interface State {
-  shared: string;
-}
+// Typed ctx.state shared across middleware, layouts, and routes.
+// Keep intentionally empty until a real cross-cutting value (e.g. session) lands.
+// deno-lint-ignore no-empty-interface
+export interface State {}
 
 export const define = createDefine<State>();

@@ -1,17 +1,33 @@
-# Fresh project
+# Sigil
 
-Your new Fresh project is ready to go. You can follow the Fresh "Getting
-Started" guide here: https://fresh.deno.dev/docs/getting-started
+Git-native Contributor License Agreements for open source.
 
-### Usage
+Maintainers drop a `CLA.md` at their repo root. Contributors sign by opening a
+pull request that commits `.cla-signatures/<handle>.md`. The repo itself is the
+source of truth — every signature, revocation, and re-sign is a Git commit,
+fully auditable. No database. No dashboard. No bot.
 
-Make sure to install Deno:
-https://docs.deno.com/runtime/getting_started/installation
+The hosted app at `sigil.io` is a thin frontend over the GitHub API: OAuth, open
+PR, wait for the maintainer to merge.
 
-Then start the project in development mode:
+## Development
+
+Requires Deno 2.x.
 
 ```
-deno task dev
+deno task dev      # Vite dev server with HMR
+deno task build    # production build
+deno task start    # run the production build
+deno task check    # fmt, lint, typecheck
 ```
 
-This will watch the project directory and restart as necessary.
+OAuth needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` — see `.env.example`.
+
+Architecture, conventions, and the signature-file spec:
+[`CLAUDE.md`](CLAUDE.md).
+
+## License
+
+[AGPL-3.0-or-later](LICENSE).
+
+Contributions require signing the Sigil [CLA](CLA.md).

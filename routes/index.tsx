@@ -1,33 +1,51 @@
-import { useSignal } from "@preact/signals";
-import { Head } from "fresh/runtime";
 import { define } from "../utils.ts";
-import Counter from "../islands/Counter.tsx";
 
-export default define.page(function Home(ctx) {
-  const count = useSignal(3);
-
-  console.log("Shared value " + ctx.state.shared);
-
+export default define.page(function Home() {
   return (
-    <div class="px-4 py-8 mx-auto fresh-gradient min-h-screen">
-      <Head>
-        <title>Fresh counter</title>
-      </Head>
-      <div class="max-w-screen-md mx-auto flex flex-col items-center justify-center">
-        <img
-          class="my-6"
-          src="/logo.svg"
-          width="128"
-          height="128"
-          alt="the Fresh logo: a sliced lemon dripping with juice"
-        />
-        <h1 class="text-4xl font-bold">Welcome to Fresh</h1>
-        <p class="my-4">
-          Try updating this message in the
-          <code class="mx-2">./routes/index.tsx</code> file, and refresh.
-        </p>
-        <Counter count={count} />
+    <main class="max-w-[800px] mx-auto px-6 pt-24 pb-16">
+      <div class="mb-12">
+        <span class="wordmark">Sigil</span>
       </div>
-    </div>
+
+      <h1 class="font-display text-[48px] leading-[1.02] text-ink mb-8">
+        Signatures for{" "}
+        <em
+          class="not-italic bg-yellow px-2 border-2 border-ink inline-block"
+          style={{ boxShadow: "4px 4px 0 #111114", transform: "rotate(-2deg)" }}
+        >
+          open source
+        </em>.
+      </h1>
+
+      <p class="text-[16px] text-ink2 leading-relaxed mb-6 max-w-[60ch]">
+        Contributor License Agreements that live in your repo. Maintainers drop
+        a{" "}
+        <span class="font-mono text-ink">CLA.md</span>. Contributors sign by
+        opening a pull request. No database, no dashboard, no lock-in — the repo
+        is the source of truth.
+      </p>
+
+      <div class="mt-12">
+        <a
+          href="/cla/github/yourrealm/realm"
+          class="inline-flex items-center gap-3 btn-sign px-5 py-3 text-[14.5px] font-medium"
+        >
+          <span>See the signing page</span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width={2.5}
+          >
+            <path d="M7 17L17 7M17 7H8M17 7v9" />
+          </svg>
+        </a>
+        <span class="ml-4 text-[12px] text-muted font-mono">
+          demo: /cla/github/yourrealm/realm
+        </span>
+      </div>
+    </main>
   );
 });
