@@ -1,9 +1,7 @@
 ---
 name: Sigil
-version: 1.0
+# version: 1.0
 ---
-
-# Sigil Contributor License Agreement
 
 This license agreement exists so copyright can be transferred to a foundation in
 the future.
