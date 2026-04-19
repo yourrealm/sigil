@@ -1,5 +1,7 @@
 import { extract } from "@std/front-matter/yaml";
 import { z } from "zod";
+import { type ComponentChildren, createContext } from "preact";
+import { useContext } from "preact/hooks";
 
 export const ClaFrontmatter = z.object({
   name: z.string().min(1),
@@ -47,4 +49,28 @@ export function parseCLA(text: string): ParseResult {
     };
   }
   return { ok: true, cla: { ...parsed.data, body: fm.body } };
+}
+
+/** The CLA being signed, plus the repo it came from. */
+export interface CLAContextValue {
+  cla: ParsedCLA;
+  owner: string;
+  repo: string;
+}
+
+const Ctx = createContext<CLAContextValue | null>(null);
+
+export function CLAProvider(
+  { value, children }: {
+    value: CLAContextValue;
+    children: ComponentChildren;
+  },
+) {
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useCLA(): CLAContextValue {
+  const v = useContext(Ctx);
+  if (!v) throw new Error("CLAProvider missing");
+  return v;
 }

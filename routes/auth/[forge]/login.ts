@@ -1,6 +1,6 @@
-import { define } from "../../../utils.ts";
-import { getForge, getOAuthCreds } from "../../../lib/forge.ts";
-import { buildCookie } from "../../../lib/cookies.ts";
+import { define } from "@/utils.ts";
+import { getForge, getOAuthCreds } from "@/lib/forge.ts";
+import { buildCookie } from "@/lib/cookies.ts";
 
 export const handler = define.handlers({
   GET(ctx) {

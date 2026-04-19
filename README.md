@@ -4,7 +4,7 @@ Git-native Contributor License Agreements for open source.
 
 Maintainers drop a `CLA.md` at their repo root. Contributors sign by opening a
 pull request that commits `.cla-signatures/<handle>.md`. The repo itself is the
-source of truth — every signature, revocation, and re-sign is a Git commit,
+source of truth - every signature, revocation, and re-sign is a Git commit,
 fully auditable. No database. No dashboard. No bot.
 
 The hosted app at `sigil.io` is a thin frontend over the GitHub API: OAuth, open
@@ -21,7 +21,7 @@ deno task start    # run the production build
 deno task check    # fmt, lint, typecheck
 ```
 
-OAuth needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` — see `.env.example`.
+OAuth needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` - see `.env.example`.
 
 Architecture, conventions, and the signature-file spec:
 [`CLAUDE.md`](CLAUDE.md).

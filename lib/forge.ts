@@ -12,7 +12,7 @@ export const FORGES: Record<string, Forge> = {
     apiBase: "https://api.github.com",
     oauthAuthorize: "https://github.com/login/oauth/authorize",
     oauthToken: "https://github.com/login/oauth/access_token",
-    scopes: ["public_repo", "read:user"],
+    scopes: ["public_repo"],
   },
 };
 

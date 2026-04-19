@@ -1,7 +1,20 @@
 export interface Session {
   token: string;
   login: string;
+  name: string | null;
+  avatarUrl: string | null;
   forge: string;
+}
+
+/** Public subset of Session - safe to pass to islands and rendered pages. */
+export interface Auth {
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
+export function sessionToAuth(s: Session): Auth {
+  return { login: s.login, name: s.name, avatarUrl: s.avatarUrl };
 }
 
 export const SESSION_TTL_MS = 30 * 60 * 1000;

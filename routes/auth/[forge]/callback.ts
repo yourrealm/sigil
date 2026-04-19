@@ -1,15 +1,11 @@
-import { define } from "../../../utils.ts";
-import { getForge, getOAuthCreds } from "../../../lib/forge.ts";
-import {
-  buildCookie,
-  clearCookie,
-  parseCookies,
-} from "../../../lib/cookies.ts";
+import { define } from "@/utils.ts";
+import { getForge, getOAuthCreds } from "@/lib/forge.ts";
+import { buildCookie, clearCookie, parseCookies } from "@/lib/cookies.ts";
 import {
   createSession,
   SESSION_TTL_MS,
   sessionCookieName,
-} from "../../../lib/sessions.ts";
+} from "@/lib/sessions.ts";
 
 export const handler = define.handlers({
   async GET(ctx) {
@@ -80,7 +76,11 @@ export const handler = define.handlers({
         status: 502,
       });
     }
-    const user = await userRes.json() as { login?: string };
+    const user = await userRes.json() as {
+      login?: string;
+      name?: string | null;
+      avatar_url?: string | null;
+    };
     if (!user.login) {
       return new Response("No login in user payload", { status: 502 });
     }
@@ -88,6 +88,8 @@ export const handler = define.handlers({
     const sessionId = await createSession({
       token: tokenData.access_token,
       login: user.login.toLowerCase(),
+      name: user.name ?? null,
+      avatarUrl: user.avatar_url ?? null,
       forge: forgeName,
     });
 

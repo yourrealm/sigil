@@ -12,7 +12,7 @@ commits a signature file to `.cla-signatures/<handle>.md`. Re-signing overwrites
 the file, revoking deletes it.
 
 **The repo itself is the source of truth.** No database, no central signature
-store — every signature, revocation, and re-sign is auditable via Git history on
+store - every signature, revocation, and re-sign is auditable via Git history on
 the target repo. The hosted app is a thin frontend over the forge API: OAuth,
 open PR, poll for merge.
 
@@ -20,23 +20,23 @@ open PR, poll for merge.
 
 **Deno-first, Fresh 2.x.** Stack as pinned in `deno.json`:
 
-- **Fresh** (`@fresh/core`) — file-system routing, server-rendered HTML, islands
+- **Fresh** (`@fresh/core`) - file-system routing, server-rendered HTML, islands
   for interactivity
-- **Vite** + `@fresh/plugin-vite` — build tool (Fresh 2.x runs on Vite, executed
+- **Vite** + `@fresh/plugin-vite` - build tool (Fresh 2.x runs on Vite, executed
   under Deno via npm: specifiers)
-- **Preact** + `@preact/signals` — the component/state model for islands
+- **Preact** + `@preact/signals` - the component/state model for islands
 - **Tailwind 4** via `@tailwindcss/vite`
-- **Zod** — validate every query param and request body with `safeParse` (add as
+- **Zod** - validate every query param and request body with `safeParse` (add as
   dep when we write the first route that needs it)
-- **`@deno/gfm`** — runtime markdown → HTML for rendering fetched `CLA.md`
+- **`@deno/gfm`** - runtime markdown → HTML for rendering fetched `CLA.md`
   bodies (add when we build the signing page)
 
 Forge calls are plain `fetch`. Auth is a KV-backed session cookie (see Auth flow
-below) — access tokens live in Deno KV, the browser only ever sees an opaque
+below) - access tokens live in Deno KV, the browser only ever sees an opaque
 session id in an HttpOnly cookie.
 
 Client data layer: **`@tanstack/preact-query`** (SSR-safe, works in islands via
-`npm:` specifier). Install it the first time we actually issue a proxy call —
+`npm:` specifier). Install it the first time we actually issue a proxy call -
 not scaffolded yet.
 
 ### Project structure
@@ -45,9 +45,9 @@ not scaffolded yet.
 routes/
   index.tsx                         # landing
   cla/[forge]/[owner]/[repo].tsx    # signing page (the product)
-  auth/[forge]/login.ts             # OAuth start — sets state cookie, redirects to forge
-  auth/[forge]/callback.ts          # OAuth finish — exchanges code, creates KV session
-  auth/[forge]/logout.ts            # POST — clears session
+  auth/[forge]/login.ts             # OAuth start - sets state cookie, redirects to forge
+  auth/[forge]/callback.ts          # OAuth finish - exchanges code, creates KV session
+  auth/[forge]/logout.ts            # POST - clears session
   api/[forge]/[...path].ts          # forge API proxy (session-optional)
   _app.tsx                          # outer <html> wrapper
 islands/SignBox.tsx                 # sign-card state machine + dialogs + dev bar
@@ -81,15 +81,16 @@ GitHub OAuth App (web flow), scopes `public_repo read:user`. After callback:
    browser)
 2. Generate a random opaque `sessionId` (32 bytes, base64url)
 3. Write `{ token, login, forge }` to **Deno KV** at `["sessions", sessionId]`
-   with `expireIn: 30 * 60 * 1000` — KV evicts it automatically at 30 min
+   with `expireIn: 30 * 60 * 1000` - KV evicts it automatically at 30 min
 4. Set `session_<forge>` cookie carrying `sessionId`: `HttpOnly`, `Secure`,
    `SameSite=Lax`
 
 The token never reaches the browser. XSS can't exfiltrate what isn't there. Log
 out = delete the KV row. Rotate = write a new row, overwrite cookie.
 
-**Deno KV works identically in dev and prod.** `Deno.openKv()` opens local
-SQLite in dev, hosted globally-replicated KV on Deno Deploy. No config.
+**Deno KV works identically in dev and prod.** `Deno.openKv()` opens a local
+SQLite file in dev, hosted globally-replicated KV on Deno Deploy. Enabled via
+`"unstable": ["kv"]` in `deno.json` (Deno 2 still gates KV behind the flag).
 
 ### Proxy
 
@@ -97,7 +98,7 @@ SQLite in dev, hosted globally-replicated KV on Deno Deploy. No config.
 Session-optional: if a valid session cookie is present, the proxy attaches
 `Authorization: token <access_token>` from KV; otherwise the request goes
 through unauthenticated, which is fine for public-repo reads. GitHub's rate
-limits and token scopes are the real gates — we don't pre-validate paths. The
+limits and token scopes are the real gates - we don't pre-validate paths. The
 proxy strips hop-by-hop headers + the client's `Cookie`/`Authorization` before
 forwarding.
 
@@ -116,18 +117,18 @@ Frontmatter + markdown body. Body is the CLA text shown to contributors.
 ```yaml
 ---
 name: Realm        # project/agreement display name; used in the signing page heading
-version: 1.0       # X.Y — quoted or unquoted is fine; integers are normalized to X.0
+version: 1.0       # X.Y - quoted or unquoted is fine; integers are normalized to X.0
 ---
 ```
 
 `name` drives the rendered heading on the signing page (e.g. "Realm Contributor
-License Agreement"). Required. Do not echo it into signature-file frontmatter —
+License Agreement"). Required. Do not echo it into signature-file frontmatter -
 the full CLA body is already embedded there, so the project name is implicit.
 
 ### Signature file (`.cla-signatures/<handle>.md`, committed by Sigil on the contributor's behalf)
 
 Body is the full CLA text the contributor agreed to (copied from `CLA.md` at
-signing time — embedded so a later edit to `CLA.md` can't rewrite history).
+signing time - embedded so a later edit to `CLA.md` can't rewrite history).
 
 Frontmatter:
 
@@ -137,7 +138,7 @@ client: sigil@<version>
 ```
 
 The filename stem is the canonical identity (lowercased GitHub handle) and must
-match the commit author — enforce this on PR creation, not in frontmatter.
+match the commit author - enforce this on PR creation, not in frontmatter.
 Signing time is the commit timestamp. The embedded body is the canonical record
 of what was signed; later edits to `CLA.md` don't rewrite history, and Git
 history on the signature file is the tamper-evidence.
@@ -156,19 +157,19 @@ repo's current `CLA.md`:
 Sigil hosts and maintains this script (shipped as a reusable Action, to be
 authored later in a subdir of this repo) but does not run it. The split is
 deliberate: Sigil is UI + PR-opener, the repo's CI is the gate. This keeps
-"source of truth is the repo" honest — a maintainer who never points anyone at
+"source of truth is the repo" honest - a maintainer who never points anyone at
 sigil.io can still accept signatures via the same Action.
 
 ## Commands
 
 From `deno.json`:
 
-- `deno task dev` — Vite dev server with HMR
-- `deno task build` — produces `_fresh/` for production
-- `deno task start` — runs the production build
+- `deno task dev` - Vite dev server with HMR
+- `deno task build` - produces `_fresh/` for production
+- `deno task start` - runs the production build
   (`deno serve -A _fresh/server.js`)
-- `deno task check` — `deno fmt --check`, `deno lint`, `deno check`
-- `deno task update` — runs `jsr:@fresh/update` to upgrade Fresh
+- `deno task check` - `deno fmt --check`, `deno lint`, `deno check`
+- `deno task update` - runs `jsr:@fresh/update` to upgrade Fresh
 
 No test task yet. Single-file test: `deno test path/to/file_test.ts`; filter:
 `deno test --filter "name"`.
@@ -180,7 +181,7 @@ GitHub Actions runs `deno task build` and deploys `_fresh/` to Deno Deploy
 
 ## Design
 
-Neobrutalism — hard 2.5px black strokes, `6px 6px 0 #111114` offset shadows, no
+Neobrutalism - hard 2.5px black strokes, `6px 6px 0 #111114` offset shadows, no
 border-radius, yellow `#FFD400` / navy `#001E62` / red `#F80035` / green
 `#007A3D` pigments for state; Archivo Black (display), Source Serif 4 (CLA
 body), JetBrains Mono (labels), Inter (UI). Phosphor duotone icons. Ported from
@@ -189,7 +190,7 @@ block) plus the custom brutalism CSS below it.
 
 The signing page lives at `routes/cla/[forge]/[owner]/[repo].tsx` with all
 interactive surface in `islands/SignBox.tsx`. Demo content (Realm CLA, user
-`@benjick`) is hardcoded in the island — real data wiring (OAuth + GitHub API
+`@benjick`) is hardcoded in the island - real data wiring (OAuth + GitHub API
 fetch of `CLA.md` and signature state) is TBD. A dev bar at the top of the
 island lets you force any state; keyboard `1`–`7` also switches states. Remove
 for production.
@@ -204,5 +205,5 @@ banner + compare + re-sign · `submitting` → step-by-step animation of the for
   frontmatter) · `revoking` → step-by-step animation of the delete + commit + PR
   flow.
 
-After revocation merges, the user re-enters `loggedIn` on next page load —
+After revocation merges, the user re-enters `loggedIn` on next page load -
 "revoked" is not a distinct terminal state.

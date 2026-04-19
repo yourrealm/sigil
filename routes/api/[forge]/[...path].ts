@@ -1,7 +1,7 @@
-import { define } from "../../../utils.ts";
-import { getForge } from "../../../lib/forge.ts";
-import { parseCookies } from "../../../lib/cookies.ts";
-import { getSession, sessionCookieName } from "../../../lib/sessions.ts";
+import { define } from "@/utils.ts";
+import { getForge } from "@/lib/forge.ts";
+import { parseCookies } from "@/lib/cookies.ts";
+import { getSession, sessionCookieName } from "@/lib/sessions.ts";
 
 const HOP_BY_HOP = new Set([
   "connection",
