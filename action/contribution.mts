@@ -155,11 +155,16 @@ export async function validateContributionAuthors(
   };
 }
 
+const GITHUB_SERVICE_LOGINS = new Set(["web-flow"]);
+
 function isBot(user: GHUserLike | null): boolean {
   if (!user) return false;
   return user.type === "Bot" || isBotLogin(user.login);
 }
 
 function isBotLogin(login: string): boolean {
-  return typeof login === "string" && login.endsWith("[bot]");
+  if (typeof login !== "string") return false;
+  if (login.endsWith("[bot]")) return true;
+  if (GITHUB_SERVICE_LOGINS.has(login)) return true;
+  return false;
 }
