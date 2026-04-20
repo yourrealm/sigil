@@ -22,11 +22,23 @@ By submitting a contribution to this project, you agree that:
    and may use it however you wish elsewhere.
 `;
 
+const GATE_WORKFLOW = `name: Sigil
+on: [pull_request_target]
+permissions:
+  pull-requests: write  # post status comment, enable auto-merge on signature PRs
+  contents: read        # read CLA.md and signature files
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: yourrealm/sigil@main
+`;
+
 export default define.page(function Home() {
   return (
     <main class="max-w-[800px] mx-auto px-6 pt-24 pb-24">
       <div class="mb-12">
-        <Wordmark />
+        <Wordmark class="text-lg" />
       </div>
 
       <h1 class="font-display text-5xl leading-tight text-ink mb-8">
@@ -37,11 +49,7 @@ export default define.page(function Home() {
       </h1>
 
       <p class="text-base text-ink2 leading-relaxed mb-12 max-w-[60ch]">
-        Contributor License Agreements that live in your repo. Maintainers drop
-        a{" "}
-        <span class="font-mono text-ink">CLA.md</span>. Contributors sign by
-        opening a pull request. No database, no dashboard, no lock-in - the repo
-        is the source of truth.
+        Contributor License Agreements that live in your repo.
       </p>
 
       <section class="mb-16">
@@ -58,7 +66,7 @@ export default define.page(function Home() {
         </p>
       </section>
 
-      <section class="mb-16">
+      <section>
         <h2 class="font-display text-3xl text-ink mb-8">How to adopt Sigil</h2>
 
         <ol class="space-y-8">
@@ -82,23 +90,13 @@ export default define.page(function Home() {
           </HowToStep>
 
           <HowToStep n="03" title="Install the gatekeeper Action">
-            A reusable GitHub Action validates every signature PR against your
-            current{" "}
-            <span class="font-mono text-ink">CLA.md</span>: filename matches the
-            commit author, the body is verbatim, and the version matches. You
-            merge, and the signature is part of Git history forever.
+            Create the following file:{" "}
+            <span class="font-mono text-ink">.github/workflows/sigil.yml</span>
+            <pre class="mt-4 font-mono text-xs bg-paper2 border-2 border-ink p-4 overflow-x-auto leading-relaxed">
+{GATE_WORKFLOW}
+            </pre>
           </HowToStep>
         </ol>
-      </section>
-
-      <section>
-        <h2 class="font-display text-3xl text-ink mb-4">Why the repo?</h2>
-        <p class="text-base text-ink2 leading-relaxed max-w-[60ch]">
-          Because every signature, revocation, and re-sign is auditable via{" "}
-          <span class="font-mono text-ink">git log</span>. Because Sigil can go
-          away and your signatures stay. Because the legal record should live
-          where the code lives.
-        </p>
       </section>
     </main>
   );

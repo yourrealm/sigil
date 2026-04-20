@@ -1,0 +1,16 @@
+name: Sigil
+description: Contributor License Agreement gatekeeper. Validates signature PRs and blocks unsigned contributions.
+author: yourrealm
+branding:
+  icon: alert-octagon
+  color: yellow
+inputs:
+  token:
+    description: GitHub token used for API calls and PR commenting.
+    default: ${{ github.token }}
+  base-url:
+    description: Sigil base URL used to build signing links in PR comments.
+    default: https://withsigil.eu
+runs:
+  using: node24
+  main: action/index.mts

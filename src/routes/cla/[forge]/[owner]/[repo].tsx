@@ -270,20 +270,27 @@ function ErrorView(
     ? `${FORGE_WEB[data.forge]}/${data.owner}/${data.repo}`
     : null;
 
+  const ownerRepo = `${data.owner}/${data.repo}`;
+  const idx = data.message.indexOf(ownerRepo);
+  const messageJsx = idx === -1 ? data.message : (
+    <>
+      {data.message.slice(0, idx)}
+      <code class="font-mono text-ink">{ownerRepo}</code>
+      {data.message.slice(idx + ownerRepo.length)}
+    </>
+  );
+
   return (
     <PageShell target={data} compact>
       <main class="max-w-[720px] mx-auto px-6 pt-8 pb-24">
-        <Eyebrow class="mb-3 block text-muted">
-          {data.forge}: {data.owner}/{data.repo}
-        </Eyebrow>
         <h1 class="font-display uppercase tracking-tighter text-6xl leading-[0.95] text-ink">
           {data.heading}
         </h1>
 
         <div class="border-t-2 border-ink mt-10 mb-8"></div>
 
-        <p class="font-serif text-base text-ink2 leading-relaxed mb-8">
-          {data.message}
+        <p class="font-serif text-base text-ink2 leading-relaxed mb-8 text-balance">
+          {messageJsx}
         </p>
 
         <div class="flex items-center gap-3">

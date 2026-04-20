@@ -1,11 +1,12 @@
 {
   "nodeModulesDir": "manual",
   "tasks": {
-    "check": "deno fmt --check . && deno lint . && deno check",
+    "check": "deno fmt --check . && deno lint . && deno check src/ vite.config.ts && deno task test:action",
     "dev": "vite",
     "build": "vite build",
     "start": "deno serve -A _fresh/server.js",
     "update": "deno run -A -r jsr:@fresh/update .",
+    "test:action": "deno test -A --no-check action/test/",
     "gen:github": "deno run -A npm:openapi-typescript@^7.5.0 https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json -o src/lib/github-api.d.ts"
   },
   "lint": {

@@ -149,12 +149,14 @@ history on the signature file is the tamper-evidence.
 ### Gatekeeper (runs in the target repo, not Sigil)
 
 Validation of signature PRs is a GitHub Action script that lives in the target
-repo and runs on PRs touching `.signatures/cla/`. It compares the PR against
-the repo's current `CLA.md`:
+repo and runs on PRs touching `.signatures/cla/`. It compares the PR against the
+repo's current `CLA.md`:
 
 - signature file body === `CLA.md` body (verbatim)
 - `agreement_version` === `CLA.md` frontmatter `version`
-- `attestation` === `"I, @<handle>, agree to the following <name> Contributor License Agreement, version <version>."` (with handle/name/version matching the other checks)
+- `attestation` ===
+  `"I, @<handle>, agree to the following <name> Contributor License Agreement, version <version>."`
+  (with handle/name/version matching the other checks)
 - filename stem === commit author handle (lowercased)
 - PR touches exactly one file under `.signatures/cla/`
 

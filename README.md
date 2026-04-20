@@ -1,27 +1,71 @@
 # Sigil
 
-Git-native Contributor License Agreements for open source.
+Signatures for open source.
 
-Maintainers drop a `CLA.md` at their repo root. Contributors sign by opening a
-pull request that commits `.signatures/cla/<handle>.md`. The repo itself is the
-source of truth - every signature, revocation, and re-sign is a Git commit,
-fully auditable. No database. No dashboard. No bot.
+Contributor License Agreements that live in your repo.
 
-The hosted app at `withsigil.eu` is a thin frontend over the GitHub API: OAuth,
-open PR, wait for the maintainer to merge.
+## How to adopt Sigil
+
+### 01. Drop a `CLA.md` in your repo root
+
+Frontmatter sets the agreement's display name and version. The body is the legal
+text contributors agree to. Example:
+
+```markdown
+---
+name: Realm
+version: 1.0
+---
+
+By submitting a contribution to this project, you agree that:
+
+1. **Ownership.** The contribution is your original work, or you have the right
+   to submit it under this agreement.
+
+2. **License grant.** You grant the maintainers and all downstream recipients a
+   perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to
+   use, modify, and distribute your contribution.
+
+3. **You keep your copyright.** You retain all rights to your contribution and
+   may use it however you wish elsewhere.
+```
+
+### 02. Share your signing URL
+
+Point contributors at `withsigil.eu/cla/github/<owner>/<repo>`. They sign in
+with GitHub and Sigil opens a pull request against your repo that adds
+`.signatures/cla/<handle>.md`.
+
+### 03. Install the gatekeeper Action
+
+Create the following file: `.github/workflows/sigil.yml`
+
+```yaml
+name: Sigil
+on: [pull_request_target]
+permissions:
+  pull-requests: write # post status comment, enable auto-merge on signature PRs
+  contents: read # read CLA.md and signature files
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: yourrealm/sigil@main
+```
 
 ## Development
 
 Requires Deno 2.x.
 
 ```
-deno task dev      # Vite dev server with HMR
-deno task build    # production build
-deno task start    # run the production build
-deno task check    # fmt, lint, typecheck
+deno task dev           # Vite dev server with HMR
+deno task build         # production build
+deno task start         # run the production build
+deno task check         # fmt, lint, typecheck, action tests
+deno task test:action   # run just the action unit tests
 ```
 
-OAuth needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` - see `.env.example`.
+OAuth needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. See `.env.example`.
 
 Architecture, conventions, and the signature-file spec:
 [`CLAUDE.md`](CLAUDE.md).
