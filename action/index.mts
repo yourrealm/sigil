@@ -80,16 +80,25 @@ export async function dispatch(
 }
 
 async function main(): Promise<void> {
+  notice(`trace: main entered (node ${process.version})`);
   const ctx = loadContext();
+  notice(
+    `trace: ctx loaded (autoMerge=${ctx.autoMerge} method=${ctx.autoMergeMethod})`,
+  );
 
   const { data: files } = await gh<PRFile[]>(
     ctx,
     `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.prNumber}/files?per_page=100`,
   );
+  notice(`trace: files fetched (n=${files.length})`);
 
   const results = await dispatch(ctx, files);
+  notice(
+    `trace: dispatch done (cla=${results.cla.ok} sig=${results.signature.ok} contrib=${results.contribution.ok} elig=${results.autoMergeEligible})`,
+  );
 
   await upsertStatusComment(ctx, results);
+  notice(`trace: comment upserted`);
 
   const allOk = results.cla.ok && results.signature.ok &&
     results.contribution.ok;
@@ -161,6 +170,8 @@ function warn(message: string): void {
 function notice(message: string): void {
   writeSync(1, `::notice::${message}\n`);
 }
+
+writeSync(1, `::notice::trace: module evaluated (main=${import.meta.main})\n`);
 
 if (import.meta.main) {
   main().catch((err: unknown) => {
