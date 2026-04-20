@@ -96,6 +96,10 @@ async function main(): Promise<void> {
 
   if (ctx.autoMerge && allOk && results.autoMergeEligible !== "none") {
     await maybeAutoMerge(ctx, results.autoMergeEligible);
+  } else if (ctx.autoMerge) {
+    notice(
+      `auto-merge skipped: allOk=${allOk} eligibility=${results.autoMergeEligible}`,
+    );
   }
 
   if (!allOk) {
@@ -133,6 +137,7 @@ async function maybeAutoMerge(
       }
     }
     await enableAutoMerge(ctx, ctx.prNodeId, ctx.autoMergeMethod);
+    notice(`auto-merge enabled (${eligibility}, ${ctx.autoMergeMethod})`);
   } catch (err) {
     warn(
       `auto-merge request failed: ${
@@ -151,6 +156,10 @@ function fail(message: string): void {
 
 function warn(message: string): void {
   writeSync(1, `::warning::${message}\n`);
+}
+
+function notice(message: string): void {
+  writeSync(1, `::notice::${message}\n`);
 }
 
 if (import.meta.main) {
