@@ -87,8 +87,8 @@ export default define.page(function Home() {
               <span class="font-mono text-ink">
                 .github/workflows/sigil.yml
               </span>. The gate validates signature PRs (signature validity, CLA
-              integrity, contributor consent) and posts a status comment;
-              merging remains manual.
+              integrity, contributor consent), posts a status comment, and
+              fails the job if anything is wrong.
               <pre class="mt-4 font-mono text-xs bg-paper2 border-2 border-ink p-4 overflow-x-auto leading-relaxed">
 {GATE_WORKFLOW}
               </pre>
