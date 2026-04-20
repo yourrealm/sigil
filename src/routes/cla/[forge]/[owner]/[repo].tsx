@@ -10,12 +10,13 @@ import { signaturePath } from "@/lib/agreement.ts";
 import { GithubLogin, GithubRepoName } from "@/lib/gh-ids.ts";
 import type { Auth } from "@/lib/sessions.ts";
 import GithubSignBox from "@/islands/GithubSignBox.tsx";
+import LoginButton from "@/islands/LoginButton.tsx";
 import { Wordmark } from "@/components/wordmark.tsx";
 import { Eyebrow } from "@/components/eyebrow.tsx";
 import { Button } from "@/components/button.tsx";
 import { DocHeading } from "@/components/doc-heading.tsx";
 import { Card, CardBody, CardHead } from "@/components/card.tsx";
-import { PiGithubLogoDuotone, PiGitPullRequestDuotone } from "@preact-icons/pi";
+import { PiGithubLogoDuotone } from "@preact-icons/pi";
 
 const FORGE_WEB: Record<string, string> = {
   github: "https://github.com",
@@ -498,16 +499,7 @@ function LoggedOutCard(
           <span class="font-mono text-ink">{owner}/{repo}</span>{" "}
           that adds your signature.
         </p>
-        <Button
-          asChild
-          class="w-full py-3.5 text-sm gap-2"
-          icon={<PiGitPullRequestDuotone class="text-xl" />}
-        >
-          <a href={loginHref}>
-            <PiGithubLogoDuotone class="text-xl" />
-            Sign in with GitHub
-          </a>
-        </Button>
+        <LoginButton href={loginHref} />
       </CardBody>
     </Card>
   );
@@ -537,12 +529,7 @@ function SignInCard(
           <span class="font-mono text-ink">{owner}/{repo}</span>'s CLA on your
           quota.
         </p>
-        <Button asChild class="w-full py-3.5 text-sm gap-2">
-          <a href={loginHref}>
-            <PiGithubLogoDuotone class="text-xl" />
-            Sign in with GitHub
-          </a>
-        </Button>
+        <LoginButton href={loginHref} />
       </div>
     </div>
   );
