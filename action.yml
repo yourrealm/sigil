@@ -11,15 +11,6 @@ inputs:
   base-url:
     description: Sigil base URL used to build signing links in PR comments.
     default: https://withsigil.eu
-  auto-merge:
-    description: Enable auto-merge on signature-only PRs that pass all checks. Requires "Allow auto-merge" in repo settings.
-    default: "false"
-  auto-merge-method:
-    description: Merge method for auto-merged signature PRs. One of MERGE, SQUASH, REBASE.
-    default: REBASE
-  sign-cooldown-days:
-    description: Days between sign/re-sign auto-merges for the same contributor. Revocations always auto-merge.
-    default: "30"
 runs:
   using: node24
   main: action/index.mts

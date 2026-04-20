@@ -2,9 +2,8 @@ import { define } from "@/utils.ts";
 import type { ComponentChildren } from "preact";
 import { Wordmark } from "@/components/wordmark.tsx";
 import { Eyebrow } from "@/components/eyebrow.tsx";
-import { Banner } from "@/components/banner.tsx";
 import RepoOpen from "@/islands/RepoOpen.tsx";
-import { PiGithubLogoDuotone, PiWarningOctagonDuotone } from "@preact-icons/pi";
+import { PiGithubLogoDuotone } from "@preact-icons/pi";
 
 const EXAMPLE_CLA = `---
 name: Realm
@@ -27,17 +26,13 @@ By submitting a contribution to this project, you agree that:
 const GATE_WORKFLOW = `name: Sigil
 on: [pull_request_target]
 permissions:
-  pull-requests: write  # post status comment, enable auto-merge on signature PRs
-  contents: write       # required by enablePullRequestAutoMerge
+  pull-requests: write  # post status comment
+  contents: read        # read CLA.md and signature files
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
       - uses: yourrealm/sigil@main
-        with:
-          auto-merge: true            # default: false. Auto-merge signature PRs that pass all checks.
-          auto-merge-method: REBASE   # default: REBASE. Other options: MERGE, SQUASH.
-          sign-cooldown-days: 30      # default: 30. Re-sign cooldown for the same contributor; revocations ignore this.
 `;
 
 export default define.page(function Home() {
@@ -91,38 +86,12 @@ export default define.page(function Home() {
               Create{" "}
               <span class="font-mono text-ink">
                 .github/workflows/sigil.yml
-              </span>. With{" "}
-              <span class="font-mono text-ink">auto-merge: true</span>,
-              signature PRs that pass all three checks (signature validity, CLA
-              integrity, contributor consent) merge automatically: revocations
-              immediately, re-signs after a 30-day cooldown to curb sign/revoke
-              spam.
+              </span>. The gate validates signature PRs (signature validity, CLA
+              integrity, contributor consent) and posts a status comment;
+              merging remains manual.
               <pre class="mt-4 font-mono text-xs bg-paper2 border-2 border-ink p-4 overflow-x-auto leading-relaxed">
 {GATE_WORKFLOW}
               </pre>
-              <div class="mt-4">
-                <Banner
-                  icon={<PiWarningOctagonDuotone />}
-                  kicker="To use auto-merge"
-                >
-                  In{" "}
-                  <span class="font-mono">
-                    Settings → Pull Requests
-                  </span>, enable{" "}
-                  <span class="font-mono">Allow auto-merge</span>. For the
-                  default method, also enable{" "}
-                  <span class="font-mono">Allow rebase merging</span>.
-                </Banner>
-              </div>
-              <p class="mt-3 text-sm text-ink2 leading-relaxed">
-                Prefer to review every signature PR by hand? Drop{" "}
-                <span class="font-mono text-ink">auto-merge: true</span>{" "}
-                and downgrade{" "}
-                <span class="font-mono text-ink">contents: write</span> to{" "}
-                <span class="font-mono text-ink">contents: read</span>. The gate
-                only reads files to validate signatures; the write scope is only
-                needed to enable auto-merge.
-              </p>
             </HowToStep>
 
             <HowToStep n="03" title="Share your signing URL">

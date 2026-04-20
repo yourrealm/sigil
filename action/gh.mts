@@ -3,21 +3,15 @@ import process from "node:process";
 
 const API = "https://api.github.com";
 
-export type MergeMethod = "MERGE" | "SQUASH" | "REBASE";
-
 export interface Context {
   token: string;
   baseUrl: string;
   owner: string;
   repo: string;
   prNumber: number;
-  prNodeId: string;
   baseSha: string;
   headSha: string;
   prAuthor: string;
-  autoMerge: boolean;
-  autoMergeMethod: MergeMethod;
-  signCooldownDays: number;
 }
 
 export interface GHOptions {
@@ -57,35 +51,15 @@ export function loadContext(): Context {
   const baseUrl = (process.env.INPUT_BASE_URL || "https://withsigil.eu")
     .replace(/\/+$/, "");
 
-  const autoMerge = (process.env.INPUT_AUTO_MERGE || "false").toLowerCase() ===
-    "true";
-  const methodRaw = (process.env.INPUT_AUTO_MERGE_METHOD || "REBASE")
-    .toUpperCase();
-  const autoMergeMethod: MergeMethod =
-    methodRaw === "SQUASH" || methodRaw === "MERGE" || methodRaw === "REBASE"
-      ? methodRaw
-      : "REBASE";
-  const cooldownRaw = parseInt(
-    process.env.INPUT_SIGN_COOLDOWN_DAYS || "30",
-    10,
-  );
-  const signCooldownDays = Number.isFinite(cooldownRaw) && cooldownRaw >= 0
-    ? cooldownRaw
-    : 30;
-
   return {
     token,
     baseUrl,
     owner,
     repo,
     prNumber: pr.number,
-    prNodeId: pr.node_id,
     baseSha: pr.base.sha,
     headSha: pr.head.sha,
     prAuthor: pr.user.login,
-    autoMerge,
-    autoMergeMethod,
-    signCooldownDays,
   };
 }
 

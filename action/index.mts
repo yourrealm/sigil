@@ -6,7 +6,6 @@ import { validateContributionAuthors } from "./contribution.mts";
 import type { ContributionResult } from "./contribution.mts";
 import { validateCLAIntegrity } from "./cla.mts";
 import { upsertStatusComment } from "./comment.mts";
-import { enableAutoMerge, lastCommitDateForPath } from "./auto-merge.mts";
 import process from "node:process";
 import { writeSync } from "node:fs";
 
@@ -16,13 +15,10 @@ export interface PRFile {
   filename: string;
 }
 
-export type AutoMergeEligible = "none" | "revocation" | "sign";
-
 export interface DispatchResults {
   cla: BranchResult;
   signature: BranchResult;
   contribution: ContributionResult | BranchResult;
-  autoMergeEligible: AutoMergeEligible;
 }
 
 export async function dispatch(
@@ -53,7 +49,6 @@ export async function dispatch(
           details: f.filename,
         },
         contribution: { ok: true, summary: "skipped" },
-        autoMergeEligible: "none",
       };
     }
   }
@@ -70,46 +65,23 @@ export async function dispatch(
     ? { ok: true, summary: "no code changes" }
     : await validateContributionAuthors(ctx);
 
-  // Only signature-only PRs are eligible for auto-merge.
-  const signatureOnly = hasOwnSignatureChange && !hasNonSignatureFiles;
-  const autoMergeEligible: AutoMergeEligible = signatureOnly
-    ? (signature.kind === "revocation" ? "revocation" : "sign")
-    : "none";
-
-  return { cla, signature, contribution, autoMergeEligible };
+  return { cla, signature, contribution };
 }
 
 async function main(): Promise<void> {
-  notice(`trace: main entered (node ${process.version})`);
   const ctx = loadContext();
-  notice(
-    `trace: ctx loaded (autoMerge=${ctx.autoMerge} method=${ctx.autoMergeMethod})`,
-  );
 
   const { data: files } = await gh<PRFile[]>(
     ctx,
     `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.prNumber}/files?per_page=100`,
   );
-  notice(`trace: files fetched (n=${files.length})`);
 
   const results = await dispatch(ctx, files);
-  notice(
-    `trace: dispatch done (cla=${results.cla.ok} sig=${results.signature.ok} contrib=${results.contribution.ok} elig=${results.autoMergeEligible})`,
-  );
 
   await upsertStatusComment(ctx, results);
-  notice(`trace: comment upserted`);
 
   const allOk = results.cla.ok && results.signature.ok &&
     results.contribution.ok;
-
-  if (ctx.autoMerge && allOk && results.autoMergeEligible !== "none") {
-    await maybeAutoMerge(ctx, results.autoMergeEligible);
-  } else if (ctx.autoMerge) {
-    notice(
-      `auto-merge skipped: allOk=${allOk} eligibility=${results.autoMergeEligible}`,
-    );
-  }
 
   if (!allOk) {
     const parts: string[] = [];
@@ -124,54 +96,12 @@ async function main(): Promise<void> {
   }
 }
 
-async function maybeAutoMerge(
-  ctx: Context,
-  eligibility: Exclude<AutoMergeEligible, "none">,
-): Promise<void> {
-  try {
-    if (eligibility === "sign") {
-      const sigPath = `.signatures/cla/${ctx.prAuthor}.md`;
-      const lastTouched = await lastCommitDateForPath(ctx, sigPath);
-      if (lastTouched) {
-        const ageDays = (Date.now() - lastTouched.getTime()) /
-          (1000 * 60 * 60 * 24);
-        if (ageDays < ctx.signCooldownDays) {
-          warn(
-            `auto-merge paused: last sign was ${
-              ageDays.toFixed(1)
-            } days ago (cooldown is ${ctx.signCooldownDays} days)`,
-          );
-          return;
-        }
-      }
-    }
-    await enableAutoMerge(ctx, ctx.prNodeId, ctx.autoMergeMethod);
-    notice(`auto-merge enabled (${eligibility}, ${ctx.autoMergeMethod})`);
-  } catch (err) {
-    warn(
-      `auto-merge request failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-  }
-}
-
 // Write synchronously to stdout so workflow commands are not lost when
 // the process exits before an async console.log flushes through the pipe.
 function fail(message: string): void {
   writeSync(1, `::error::${message}\n`);
   process.exitCode = 1;
 }
-
-function warn(message: string): void {
-  writeSync(1, `::warning::${message}\n`);
-}
-
-function notice(message: string): void {
-  writeSync(1, `::notice::${message}\n`);
-}
-
-writeSync(1, `::notice::trace: module evaluated (main=${import.meta.main})\n`);
 
 if (import.meta.main) {
   main().catch((err: unknown) => {

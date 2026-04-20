@@ -59,13 +59,9 @@ function makeCtx(overrides: Partial<Context> = {}): Context {
     owner: "y",
     repo: "s",
     prNumber: 1,
-    prNodeId: "PR_fake",
     baseSha: "b",
     headSha: "h",
     prAuthor: "benjick",
-    autoMerge: false,
-    autoMergeMethod: "REBASE",
-    signCooldownDays: 30,
     ...overrides,
   };
 }
@@ -511,71 +507,6 @@ Deno.test("others-sig reject wins regardless of file order", async () => {
   assertEquals(result.signature.ok, false);
   assertEquals(result.signature.details, ".signatures/cla/alice.md");
   assertEquals(result.contribution.summary, "skipped");
-});
-
-Deno.test("autoMergeEligible is 'sign' on a valid signature-only PR", async () => {
-  mockFetch({
-    "/repos/y/s/contents/.signatures/cla/benjick.md?ref=h": contentsResp(
-      sigText("1.0"),
-    ),
-    "/repos/y/s/contents/CLA.md?ref=h": contentsResp(claText("1.0")),
-  });
-
-  const files: PRFile[] = [{ filename: ".signatures/cla/benjick.md" }];
-  const result = await dispatch(makeCtx(), files);
-
-  assertEquals(result.autoMergeEligible, "sign");
-});
-
-Deno.test("autoMergeEligible is 'revocation' when signature file is absent at head", async () => {
-  mockFetch({
-    "/repos/y/s/contents/.signatures/cla/benjick.md?ref=h": { status: 404 },
-  });
-
-  const files: PRFile[] = [{ filename: ".signatures/cla/benjick.md" }];
-  const result = await dispatch(makeCtx(), files);
-
-  assertEquals(result.autoMergeEligible, "revocation");
-});
-
-Deno.test("autoMergeEligible is 'none' on a mixed PR (signature + code)", async () => {
-  mockFetch({
-    "/repos/y/s/contents/.signatures/cla/benjick.md?ref=h": contentsResp(
-      sigText("1.0"),
-    ),
-    "/repos/y/s/contents/CLA.md?ref=h": contentsResp(claText("1.0")),
-    "/repos/y/s/pulls/1/commits?per_page=100": { body: [] },
-  });
-
-  const files: PRFile[] = [
-    { filename: ".signatures/cla/benjick.md" },
-    { filename: "README.md" },
-  ];
-  const result = await dispatch(makeCtx(), files);
-
-  assertEquals(result.autoMergeEligible, "none");
-});
-
-Deno.test("autoMergeEligible is 'none' on a code-only PR", async () => {
-  mockFetch({
-    "/repos/y/s/pulls/1/commits?per_page=100": { body: [] },
-    "/repos/y/s/contents/CLA.md?ref=h": contentsResp(claText("1.0")),
-    "/repos/y/s/contents/.signatures/cla/benjick.md?ref=h": contentsResp(
-      sigText("1.0"),
-    ),
-  });
-
-  const files: PRFile[] = [{ filename: "README.md" }];
-  const result = await dispatch(makeCtx(), files);
-
-  assertEquals(result.autoMergeEligible, "none");
-});
-
-Deno.test("autoMergeEligible is 'none' when PR is rejected for others-sig", async () => {
-  const files: PRFile[] = [{ filename: ".signatures/cla/alice.md" }];
-  const result = await dispatch(makeCtx(), files);
-
-  assertEquals(result.autoMergeEligible, "none");
 });
 
 Deno.test("contribution follows Link pagination across commit pages", async () => {

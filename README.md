@@ -32,34 +32,22 @@ By submitting a contribution to this project, you agree that:
 
 ### 02. Install the gatekeeper Action
 
-Create `.github/workflows/sigil.yml`. With `auto-merge: true`, signature PRs
-that pass all three checks (signature validity, CLA integrity, contributor
-consent) merge automatically: revocations immediately, re-signs after a 30-day
-cooldown to curb sign/revoke spam.
+Create `.github/workflows/sigil.yml`. The gate validates signature PRs
+(signature validity, CLA integrity, contributor consent) and posts a status
+comment; merging remains manual.
 
 ```yaml
 name: Sigil
 on: [pull_request_target]
 permissions:
-  pull-requests: write # post status comment, enable auto-merge on signature PRs
-  contents: write # required by enablePullRequestAutoMerge
+  pull-requests: write # post status comment
+  contents: read # read CLA.md and signature files
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
       - uses: yourrealm/sigil@main
-        with:
-          auto-merge: true # default: false. Auto-merge signature PRs that pass all checks.
-          auto-merge-method: REBASE # default: REBASE. Other options: MERGE, SQUASH.
-          sign-cooldown-days: 30 # default: 30. Re-sign cooldown for the same contributor; revocations ignore this.
 ```
-
-In your repo's **Settings → Pull Requests**, enable `Allow auto-merge`. For the
-default method, also enable `Allow rebase merging`.
-
-If you'd rather review every signature PR by hand, drop `auto-merge: true` and
-downgrade `contents: write` to `contents: read`. The gate only reads files to
-validate signatures; the write scope is only needed to enable auto-merge.
 
 ### 03. Share your signing URL
 

@@ -1,12 +1,10 @@
 name: Sigil
 on: [pull_request_target]
 permissions:
-  pull-requests: write # post status comment, enable auto-merge on signature PRs
-  contents: write # required by enablePullRequestAutoMerge; contents: read is enough without auto-merge
+  pull-requests: write # post status comment
+  contents: read # read CLA.md and signature files
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
       - uses: yourrealm/sigil@main
-        with:
-          auto-merge: true # auto-merge signature PRs (revocations always, signs with 30-day cooldown)
