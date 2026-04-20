@@ -258,6 +258,33 @@ Deno.test("contribution ignores Co-authored-by trailers in commit messages", asy
   assertEquals(result.contribution.ok, true);
 });
 
+Deno.test("contribution filters web-flow (GitHub UI commits) from the author set", async () => {
+  mockFetch({
+    "/repos/y/s/pulls/1/commits?per_page=100": {
+      body: [
+        {
+          sha: "abc1234",
+          author: { login: "benjick", type: "User" },
+          committer: { login: "web-flow", type: "User" },
+          commit: {
+            author: { email: "b@e.com" },
+            committer: { email: "noreply@github.com" },
+          },
+        },
+      ],
+    },
+    "/repos/y/s/contents/CLA.md?ref=h": contentsResp(claText("1.0")),
+    "/repos/y/s/contents/.signatures/cla/benjick.md?ref=h": contentsResp(
+      sigText("1.0"),
+    ),
+  });
+
+  const files: PRFile[] = [{ filename: "README.md" }];
+  const result = await dispatch(makeCtx(), files);
+
+  assertEquals(result.contribution.ok, true);
+});
+
 Deno.test("contribution filters bot logins from the author set", async () => {
   mockFetch({
     "/repos/y/s/pulls/1/commits?per_page=100": {
