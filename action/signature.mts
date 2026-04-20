@@ -6,6 +6,8 @@ export interface BranchResult {
   ok: boolean;
   summary: string;
   details?: string;
+  /** Only set by the signature axis: "sign" if the file exists at HEAD, "revocation" if deleted. */
+  kind?: "sign" | "revocation";
 }
 
 export interface Frontmatter {
@@ -24,7 +26,7 @@ export async function validateSignatureChange(
   const sigText = await fetchContent(ctx, path, ctx.headSha);
 
   if (sigText == null) {
-    return { ok: true, summary: "revocation" };
+    return { ok: true, summary: "revocation", kind: "revocation" };
   }
 
   const sig = splitFrontmatter(sigText);
@@ -66,7 +68,7 @@ export async function validateSignatureChange(
     };
   }
 
-  return { ok: true, summary: `signed against CLA ${claVer}` };
+  return { ok: true, summary: `signed against CLA ${claVer}`, kind: "sign" };
 }
 
 export function splitFrontmatter(text: string): ParsedDocument {

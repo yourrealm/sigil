@@ -1,4 +1,5 @@
 import type { ComponentChildren } from "preact";
+import { PiSignatureDuotone } from "@preact-icons/pi";
 import { cn } from "@/lib/cn.ts";
 
 export interface WordmarkProps {
@@ -13,11 +14,12 @@ export function Wordmark(
   { href, tagline, class: className, children = "Sigil" }: WordmarkProps,
 ) {
   const cls = cn(
-    "font-display uppercase text-3xl tracking-tight text-ink leading-none inline-flex items-center",
+    "font-display uppercase text-3xl tracking-tight text-ink leading-none inline-flex items-center gap-2",
     className,
   );
   const inner = (
     <>
+      <PiSignatureDuotone aria-hidden="true" class="text-[1.1em]" />
       <span>{children}</span>
       {tagline && (
         <>

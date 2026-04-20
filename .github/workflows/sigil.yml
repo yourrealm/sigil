@@ -8,3 +8,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: yourrealm/sigil@main
+        with:
+          auto-merge: true # auto-merge signature PRs (revocations always, signs with 30-day cooldown)

@@ -30,15 +30,12 @@ By submitting a contribution to this project, you agree that:
    may use it however you wish elsewhere.
 ```
 
-### 02. Share your signing URL
+### 02. Install the gatekeeper Action
 
-Point contributors at `withsigil.eu/cla/github/<owner>/<repo>`. They sign in
-with GitHub and Sigil opens a pull request against your repo that adds
-`.signatures/cla/<handle>.md`.
-
-### 03. Install the gatekeeper Action
-
-Create the following file: `.github/workflows/sigil.yml`
+Create `.github/workflows/sigil.yml`. With `auto-merge: true`, signature PRs
+that pass all three checks (signature validity, CLA integrity, contributor
+consent) merge automatically: revocations immediately, re-signs after a 30-day
+cooldown to curb sign/revoke spam.
 
 ```yaml
 name: Sigil
@@ -51,7 +48,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: yourrealm/sigil@main
+        with:
+          auto-merge: true # default: false. Auto-merge signature PRs that pass all checks.
+          auto-merge-method: REBASE # default: REBASE. Other options: MERGE, SQUASH.
+          sign-cooldown-days: 30 # default: 30. Re-sign cooldown for the same contributor; revocations ignore this.
 ```
+
+In your repo's **Settings → Pull Requests**, enable `Allow auto-merge`. For the
+default method, also enable `Allow rebase merging`.
+
+### 03. Share your signing URL
+
+Point contributors at `withsigil.eu/cla/github/<owner>/<repo>`. They sign in
+with GitHub and Sigil opens a pull request against your repo that adds
+`.signatures/cla/<handle>.md`.
 
 ## Development
 

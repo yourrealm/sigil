@@ -6,6 +6,7 @@ import { validateContributionAuthors } from "./contribution.mts";
 import type { ContributionResult } from "./contribution.mts";
 import { validateCLAIntegrity } from "./cla.mts";
 import { upsertStatusComment } from "./comment.mts";
+import { enableAutoMerge, lastCommitDateForPath } from "./auto-merge.mts";
 import process from "node:process";
 
 const SIGNATURE_PREFIX = ".signatures/cla/";
@@ -14,10 +15,13 @@ export interface PRFile {
   filename: string;
 }
 
+export type AutoMergeEligible = "none" | "revocation" | "sign";
+
 export interface DispatchResults {
   cla: BranchResult;
   signature: BranchResult;
   contribution: ContributionResult | BranchResult;
+  autoMergeEligible: AutoMergeEligible;
 }
 
 export async function dispatch(
@@ -48,6 +52,7 @@ export async function dispatch(
           details: f.filename,
         },
         contribution: { ok: true, summary: "skipped" },
+        autoMergeEligible: "none",
       };
     }
   }
@@ -64,7 +69,13 @@ export async function dispatch(
     ? { ok: true, summary: "no code changes" }
     : await validateContributionAuthors(ctx);
 
-  return { cla, signature, contribution };
+  // Only signature-only PRs are eligible for auto-merge.
+  const signatureOnly = hasOwnSignatureChange && !hasNonSignatureFiles;
+  const autoMergeEligible: AutoMergeEligible = signatureOnly
+    ? (signature.kind === "revocation" ? "revocation" : "sign")
+    : "none";
+
+  return { cla, signature, contribution, autoMergeEligible };
 }
 
 async function main(): Promise<void> {
@@ -79,7 +90,14 @@ async function main(): Promise<void> {
 
   await upsertStatusComment(ctx, results);
 
-  if (!results.cla.ok || !results.signature.ok || !results.contribution.ok) {
+  const allOk = results.cla.ok && results.signature.ok &&
+    results.contribution.ok;
+
+  if (ctx.autoMerge && allOk && results.autoMergeEligible !== "none") {
+    await maybeAutoMerge(ctx, results.autoMergeEligible);
+  }
+
+  if (!allOk) {
     const parts: string[] = [];
     if (!results.cla.ok) parts.push(`cla: ${results.cla.summary}`);
     if (!results.signature.ok) {
@@ -92,9 +110,44 @@ async function main(): Promise<void> {
   }
 }
 
+async function maybeAutoMerge(
+  ctx: Context,
+  eligibility: Exclude<AutoMergeEligible, "none">,
+): Promise<void> {
+  try {
+    if (eligibility === "sign") {
+      const sigPath = `.signatures/cla/${ctx.prAuthor}.md`;
+      const lastTouched = await lastCommitDateForPath(ctx, sigPath);
+      if (lastTouched) {
+        const ageDays = (Date.now() - lastTouched.getTime()) /
+          (1000 * 60 * 60 * 24);
+        if (ageDays < ctx.signCooldownDays) {
+          warn(
+            `auto-merge paused: last sign was ${
+              ageDays.toFixed(1)
+            } days ago (cooldown is ${ctx.signCooldownDays} days)`,
+          );
+          return;
+        }
+      }
+    }
+    await enableAutoMerge(ctx, ctx.prNodeId, ctx.autoMergeMethod);
+  } catch (err) {
+    warn(
+      `auto-merge request failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
 function fail(message: string): void {
   console.log(`::error::${message}`);
   process.exitCode = 1;
+}
+
+function warn(message: string): void {
+  console.log(`::warning::${message}`);
 }
 
 if (import.meta.main) {
