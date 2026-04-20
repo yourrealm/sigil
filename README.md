@@ -42,7 +42,7 @@ name: Sigil
 on: [pull_request_target]
 permissions:
   pull-requests: write # post status comment, enable auto-merge on signature PRs
-  contents: read # read CLA.md and signature files
+  contents: write # required by enablePullRequestAutoMerge
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -56,6 +56,10 @@ jobs:
 
 In your repo's **Settings → Pull Requests**, enable `Allow auto-merge`. For the
 default method, also enable `Allow rebase merging`.
+
+If you'd rather review every signature PR by hand, drop `auto-merge: true` and
+downgrade `contents: write` to `contents: read`. The gate only reads files to
+validate signatures; the write scope is only needed to enable auto-merge.
 
 ### 03. Share your signing URL
 

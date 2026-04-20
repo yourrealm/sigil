@@ -28,7 +28,7 @@ const GATE_WORKFLOW = `name: Sigil
 on: [pull_request_target]
 permissions:
   pull-requests: write  # post status comment, enable auto-merge on signature PRs
-  contents: read        # read CLA.md and signature files
+  contents: write       # required by enablePullRequestAutoMerge
 jobs:
   gate:
     runs-on: ubuntu-latest
@@ -114,6 +114,15 @@ export default define.page(function Home() {
                   <span class="font-mono">Allow rebase merging</span>.
                 </Banner>
               </div>
+              <p class="mt-3 text-sm text-ink2 leading-relaxed">
+                Prefer to review every signature PR by hand? Drop{" "}
+                <span class="font-mono text-ink">auto-merge: true</span>{" "}
+                and downgrade{" "}
+                <span class="font-mono text-ink">contents: write</span> to{" "}
+                <span class="font-mono text-ink">contents: read</span>. The gate
+                only reads files to validate signatures; the write scope is only
+                needed to enable auto-merge.
+              </p>
             </HowToStep>
 
             <HowToStep n="03" title="Share your signing URL">

@@ -2,7 +2,7 @@ name: Sigil
 on: [pull_request_target]
 permissions:
   pull-requests: write # post status comment, enable auto-merge on signature PRs
-  contents: read # read CLA.md and signature files
+  contents: write # required by enablePullRequestAutoMerge; contents: read is enough without auto-merge
 jobs:
   gate:
     runs-on: ubuntu-latest

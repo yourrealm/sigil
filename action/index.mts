@@ -8,6 +8,7 @@ import { validateCLAIntegrity } from "./cla.mts";
 import { upsertStatusComment } from "./comment.mts";
 import { enableAutoMerge, lastCommitDateForPath } from "./auto-merge.mts";
 import process from "node:process";
+import { writeSync } from "node:fs";
 
 const SIGNATURE_PREFIX = ".signatures/cla/";
 
@@ -141,13 +142,15 @@ async function maybeAutoMerge(
   }
 }
 
+// Write synchronously to stdout so workflow commands are not lost when
+// the process exits before an async console.log flushes through the pipe.
 function fail(message: string): void {
-  console.log(`::error::${message}`);
+  writeSync(1, `::error::${message}\n`);
   process.exitCode = 1;
 }
 
 function warn(message: string): void {
-  console.log(`::warning::${message}`);
+  writeSync(1, `::warning::${message}\n`);
 }
 
 if (import.meta.main) {
