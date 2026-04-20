@@ -1,8 +1,10 @@
 name: Check
 on:
   pull_request:
+    paths-ignore: [".signatures/cla/**"]
   push:
     branches: [main]
+    paths-ignore: [".signatures/cla/**"]
 jobs:
   check:
     runs-on: ubuntu-latest
